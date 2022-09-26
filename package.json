@@ -1,0 +1,20 @@
+{
+  "name": "p5js-with-typescript",
+  "version": "1.0.0",
+  "description": "A template for a p5.js sketch using Typescript",
+  "default": "index.html",
+  "scripts": {
+    "start": "parcel index.html"
+  },
+  "dependencies": {
+    "@types/p5": "0.9.0",
+    "p5": "0.9.0",
+    "parcel": "^2.7.0"
+  },
+  "keywords": [
+    "p5js",
+    "typescript"
+  ],
+  "author": "",
+  "license": "ISC"
+}
