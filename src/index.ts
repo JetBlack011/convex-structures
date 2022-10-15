@@ -1,7 +1,7 @@
 import P5 from "p5";
 import "p5/lib/addons/p5.dom"
 
-import {ComplexNumber} from "./linalg"
+import {ComplexNumber, MobiusTransformation} from "./linalg"
 import {Point, Vector, Model, DiskModel} from "./model"
 import {Draggable, DraggablePoint} from "./draggable"
 

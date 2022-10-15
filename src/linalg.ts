@@ -144,8 +144,7 @@ class Vector extends Matrix {
         let result = new Vector(this.rows);
 
         for (let i = 0; i < this.rows; ++i)
-            result.mat[i][0] += other.mat[i][0];
-
+            result.mat[i][0] = this.mat[i][0] + other.mat[i][0];
         return result;
     }
 

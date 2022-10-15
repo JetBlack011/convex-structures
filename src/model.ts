@@ -36,12 +36,12 @@ class DiskModel implements Model {
     affineToModel(p: Point): ComplexNumber {
         let z = new ComplexNumber((p.x - this.drawOrigin.x) / this.drawRadius * 2, -(p.y - this.drawOrigin.y) / this.drawRadius * 2);
 
-        //return this.globalTransformation.T(z);
+        return this.globalTransformation.T(z);
         return z;
     }
 
     modelToAffine(z: ComplexNumber): Point {
-        //z = this.globalTransformation.T(z);
+        z = this.globalTransformation.T(z);
 
         return {x: z.Re * this.drawRadius / 2 + this.drawOrigin.x, y: -z.Im * this.drawRadius / 2 + this.drawOrigin.y};
     }
@@ -60,8 +60,8 @@ class DiskModel implements Model {
      * @param {ComplexNumber} w
      */
     d(z: ComplexNumber, w: ComplexNumber): number {
-        //z = this.globalTransformation.T(z);
-        //w = this.globalTransformation.T(w);
+        z = this.globalTransformation.T(z);
+        w = this.globalTransformation.T(w);
 
         return Math.acosh(1 + this.delta(z, w));
     }
@@ -80,7 +80,7 @@ class DiskModel implements Model {
      * @param {Point} p - The point in D to draw, -1 < ||p|| < 1
      */
     drawPoint(p5: P5, z: ComplexNumber): void {
-        //z = this.globalTransformation.T(z);
+        z = this.globalTransformation.T(z);
 
         p5.strokeWeight(10);
         let p = this.modelToAffine(z);
@@ -88,8 +88,8 @@ class DiskModel implements Model {
     }
 
     drawGeodesic(p5: P5, z: ComplexNumber, w: ComplexNumber) {
-        //z = this.globalTransformation.T(z);
-        //w = this.globalTransformation.T(w);
+        z = this.globalTransformation.T(z);
+        w = this.globalTransformation.T(w);
 
         p5.strokeWeight(1);
 
