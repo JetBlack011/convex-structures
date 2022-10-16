@@ -1,8 +1,3 @@
-class Point {
-    x: number;
-    y: number;
-}
-
 class Matrix {
     mat: number[][];
     rows: number;
@@ -106,13 +101,15 @@ class Matrix {
             throw new Error("Dimension mismatch");
 
         let result = new Matrix(this.rows, other.columns);
+
         for (let i = 0; i < this.rows; ++i) {
             for (let j = 0; j < other.columns; ++j) {
-                result[i][j] = 0;
+                result.mat[i][j] = 0;
                 for (let k = 0; k < other.rows; ++k)
-                    result[i][j] += this.mat[i][k] * other.mat[k][j];
+                    result.mat[i][j] += this.mat[i][k] * other.mat[k][j];
             }
         }
+
         return result;
     }
 
@@ -126,11 +123,29 @@ class Matrix {
 
         return result;
     }
+
+    equals(other: Matrix): boolean {
+        if (this.rows != other.rows || this.columns != other.columns)
+            return false;
+
+        for (let i = 0; i < this.rows; ++i) {
+            for (let j = 0; j < this.columns; ++j) {
+                if (this.mat[i][j] != other.mat[i][j])
+                    return false;
+            }
+        }
+
+        return true;
+    }
 }
 
 class Vector extends Matrix {
     constructor(rows: number, mat?: number[][]) {
         super(rows, 1, mat);
+    }
+
+    at(i: number) {
+        return super.at(i, 0);
     }
 
     scale(c: number): Vector {
@@ -144,7 +159,8 @@ class Vector extends Matrix {
         let result = new Vector(this.rows);
 
         for (let i = 0; i < this.rows; ++i)
-            result.mat[i][0] = this.mat[i][0] + other.mat[i][0];
+            result.mat[i][0] = this.at(i) + other.at(i);
+
         return result;
     }
 
@@ -152,11 +168,12 @@ class Vector extends Matrix {
         return this.add(other.scale(-1));
     }
 
+    dot(other: Vector): number {
+        return this.transpose().multiply(other).at(0, 0);
+    }
+
     normSquared(): number {
-        let result = 0;
-        for (let i = 0; i < this.rows; ++i)
-            result += this.mat[i][0] ** 2;
-        return result;
+        return this.dot(this);
     }
 
     norm(): number {
@@ -168,15 +185,7 @@ class Vector extends Matrix {
     }
 
     equals(other: Vector): boolean {
-        if (other.rows != this.rows)
-            return false;
-
-        let result = true;
-
-        for (let i = 0; i < this.rows; ++i)
-            result &&= this.mat[i][0] == other.mat[i][0];
-
-        return result;
+        return super.equals(other);
     }
 }
 
@@ -193,7 +202,12 @@ class ComplexNumber extends Vector {
 
     add(other: ComplexNumber): ComplexNumber {
         let result = super.add(other);
-        return new ComplexNumber(result.at(0, 0), result.at(1, 0));
+        return new ComplexNumber(result.at(0), result.at(1));
+    }
+
+    subtract(other: ComplexNumber): ComplexNumber {
+        let result = super.subtract(other);
+        return new ComplexNumber(result.at(0), result.at(1));
     }
 
     multiply(other: ComplexNumber): ComplexNumber {
@@ -206,7 +220,7 @@ class ComplexNumber extends Vector {
 
     normalize(): ComplexNumber {
         let result = super.normalize();
-        return new ComplexNumber(result.at(0, 0), result.at(1, 0));
+        return new ComplexNumber(result.at(0), result.at(1));
     }
 
     modulus(): number {
@@ -277,4 +291,4 @@ class MobiusTransformation extends Matrix implements Transformation {
     }
 }
 
-export {Point, Matrix, Vector, ComplexNumber, LinearTransformation, MobiusTransformation};
+export {Matrix, Vector, ComplexNumber, LinearTransformation, MobiusTransformation};

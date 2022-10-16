@@ -2,11 +2,11 @@ import P5 from "p5";
 import "p5/lib/addons/p5.dom"
 
 import {ComplexNumber, MobiusTransformation} from "./linalg"
-import {Point, Vector, Model, DiskModel} from "./model"
-import {Draggable, DraggablePoint} from "./draggable"
+import {Vector, Model, PoincareModel} from "./model"
+import {Point, Draggable, DraggablePoint} from "./utils"
 
 const sketch = (p5: P5) => {
-    let model: DiskModel;
+    let model: PoincareModel;
     let draggables: Draggable[] = [];
 
     let p: DraggablePoint;
@@ -18,13 +18,13 @@ const sketch = (p5: P5) => {
 
 		p5.background("white");
 
-        model = new DiskModel({x: 210, y: 210}, 400);
+        model = new PoincareModel({x: 210, y: 210}, 400);
 
         let z = new ComplexNumber(1, 0);
         let w = new ComplexNumber(0, 1);
 
-        let _p = model.modelToAffine(z);
-        let _q = model.modelToAffine(w);
+        let _p = model.modelToCanvas(z);
+        let _q = model.modelToCanvas(w);
 
         p = new DraggablePoint(_p.x, _p.y);
         q = new DraggablePoint(_q.x, _q.y);
@@ -56,14 +56,14 @@ const sketch = (p5: P5) => {
         p5.pop();
 
         model.draw(p5);
-        model.drawPoint(p5, model.affineToModel(p));
-        model.drawPoint(p5, model.affineToModel(q));
+        model.drawPoint(p5, model.canvasToModel(p));
+        model.drawPoint(p5, model.canvasToModel(q));
 
-        model.drawGeodesic(p5, model.affineToModel(p), model.affineToModel(q));
+        model.drawGeodesic(p5, model.canvasToModel(p), model.canvasToModel(q));
 
-        let modelMouse = model.affineToModel({x: p5.mouseX, y: p5.mouseY});
+        let modelMouse = model.canvasToModel({x: p5.mouseX, y: p5.mouseY});
         if (modelMouse.normSquared() > 1) {
-            let newMouse = model.modelToAffine(modelMouse.normalize());
+            let newMouse = model.modelToCanvas(modelMouse.normalize());
             p5.mouseX = newMouse.x;
             p5.mouseY = newMouse.y;
         }

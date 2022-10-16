@@ -1,5 +1,9 @@
 import P5 from "p5";
-import {Point} from "./model";
+
+class Point {
+    x: number;
+    y: number;
+}
 
 class Draggable implements Point {
     x: number;
@@ -80,4 +84,4 @@ class DraggablePoint extends Draggable {
     }
 }
 
-export {Draggable, DraggablePoint};
+export {Point, Draggable, DraggablePoint};
