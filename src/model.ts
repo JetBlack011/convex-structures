@@ -1,7 +1,7 @@
 import P5 from "p5";
 
-import {Point} from './utils';
-import {Matrix, Vector, ComplexNumber, LinearTransformation, MobiusTransformation} from "./linalg";
+import {Stack, Point} from './utils';
+import {Matrix, Vector, ComplexNumber, Transformation, LinearTransformation, MobiusTransformation} from "./linalg";
 
 /**
  * Represents a model of hyperbolic space. Classes which implement
@@ -10,9 +10,17 @@ import {Matrix, Vector, ComplexNumber, LinearTransformation, MobiusTransformatio
  */
 interface Model {
     drawOrigin: Point;
+    frameStack: Stack<Transformation>;
+
     d(z: ComplexNumber, w: ComplexNumber): number;
+
     canvasToModel(p: Point): ComplexNumber;
     modelToCanvas(z: ComplexNumber): Point;
+
+    push(): void;
+    pop(): Transformation;
+    transfrom(T: Transformation): void;
+
     draw(p5: P5): void;
     drawPoint(p5: P5, z: ComplexNumber): void;
     drawGeodesic(p5: P5, z: ComplexNumber, w: ComplexNumber): void;
@@ -21,6 +29,7 @@ interface Model {
 abstract class DiskModel implements Model {
     drawOrigin: Point;
     drawRadius: number;
+    frameStack: Stack<Transformation>;
 
     /**
      * @param {Point} drawOrigin - The point at which to draw the disk
@@ -38,9 +47,7 @@ abstract class DiskModel implements Model {
      * @param {Point} p
      */
     canvasToModel(p: Point): ComplexNumber {
-        let z = new ComplexNumber((p.x - this.drawOrigin.x) / this.drawRadius * 2, -(p.y - this.drawOrigin.y) / this.drawRadius * 2);
-
-        return z;
+        return new ComplexNumber((p.x - this.drawOrigin.x) / this.drawRadius * 2, -(p.y - this.drawOrigin.y) / this.drawRadius * 2);
     }
 
     /**
@@ -49,6 +56,28 @@ abstract class DiskModel implements Model {
      */
     modelToCanvas(z: ComplexNumber): Point {
         return {x: z.Re * this.drawRadius / 2 + this.drawOrigin.x, y: -z.Im * this.drawRadius / 2 + this.drawOrigin.y};
+    }
+
+    /**
+     * Push a new frame onto the transformation stack
+     */
+    push(): void {
+        this.frameStack.push(this.frameStack.peek());
+    }
+
+    /**
+     * Pop a new frame onto the transformation stack
+     */
+    pop(): Transformation {
+        return this.frameStack.pop();
+    }
+
+    /**
+     * Apply a transformation to the model
+     * @param {Transformation} T
+     */
+    transfrom(T: Transformation): void {
+        this.frameStack.peek()
     }
 
     /**
@@ -66,6 +95,7 @@ abstract class DiskModel implements Model {
      * @param {ComplexNumber} z - The point in D to draw, |z| < 1
      */
     drawPoint(p5: P5, z: ComplexNumber): void {
+        p5.stroke(0);
         p5.strokeWeight(10);
         let p = this.modelToCanvas(z);
         p5.point(p.x, p.y);
@@ -173,8 +203,32 @@ class KleinModel extends DiskModel {
         super(drawOrigin, drawRadius);
     }
 
+    chord(z: ComplexNumber, w: ComplexNumber): [ComplexNumber, ComplexNumber] {
+        let x1 = z.Re;
+        let y1 = z.Im;
+        let x2 = w.Re;
+        let y2 = w.Im;
+
+        // Find where the chord through z and w intersects D
+        let a = new ComplexNumber(-((-(x2*y1**2) + x1*y1*y2 + x2*y1*y2 - x1*y2**2 + Math.sqrt(-((x1 - x2)**2* (x2**2*(-1 + y1**2) - (y1 - y2)**2 - 2*x1*x2*(-1 + y1*y2) + x1**2*(-1 + y2**2)))))/(x1**2 - 2*x1*x2 + x2**2 + (y1 - y2)**2)),
+                                  (-(x2**3*y1) + x1**3*y2 + x1*x2**2*(2*y1 + y2) - x1**2*x2*(y1 + 2*y2) + (-y1 + y2)*Math.sqrt(-((x1 - x2)**2*(x2**2*(-1 + y1**2) - (y1 - y2)**2 - 2*x1*x2*(-1 + y1*y2) + x1**2*(-1 + y2**2)))))/ ((x1 - x2)*(x1**2 - 2*x1*x2 + x2**2 + (y1 - y2)**2)));
+        let b = new ComplexNumber((x2*y1**2 - x1*y1*y2 - x2*y1*y2 + x1*y2**2 + Math.sqrt(-((x1 - x2)**2* (x2**2*(-1 + y1**2) - (y1 - y2)**2 - 2*x1*x2*(-1 + y1*y2) + x1**2*(-1 + y2**2)))))/ (x1**2 - 2*x1*x2 + x2**2 + (y1 - y2)**2),
+                                  (-(x2**3*y1) + x1**3*y2 + x1*x2**2*(2*y1 + y2) - x1**2*x2*(y1 + 2*y2) + (y1 - y2)*Math.sqrt(-((x1 - x2)**2* (x2**2*(-1 + y1**2) - (y1 - y2)**2 - 2*x1*x2*(-1 + y1*y2) + x1**2*(-1 + y2**2)))))/ ((x1 - x2)*(x1**2 - 2*x1*x2 + x2**2 + (y1 - y2)**2)))
+
+        return [a,b];
+    }
+
     private crossRatio(z: ComplexNumber, w: ComplexNumber): number {
-        return 0;
+        let [a,b] = this.chord(z,w);
+
+        // Make sure point ordering is correct
+        if (a.subtract(z).norm() > a.subtract(w).norm()) {
+            let t = a;
+            a = b;
+            b = t;
+        }
+
+        return (w.subtract(a).norm() * b.subtract(z).norm()) / (z.subtract(a).norm() * b.subtract(w).norm());
     }
 
     d(z: ComplexNumber, w: ComplexNumber): number {
@@ -182,8 +236,14 @@ class KleinModel extends DiskModel {
     }
 
     drawGeodesic(p5: P5, z: ComplexNumber, w: ComplexNumber): void {
+        p5.stroke(0);
+        p5.strokeWeight(1);
 
+        let p = this.modelToCanvas(z);
+        let q = this.modelToCanvas(w);
+
+        p5.line(p.x, p.y, q.x, q.y);
     }
 }
 
-export {Vector, Model, PoincareModel};
+export {Model, KleinModel, PoincareModel};

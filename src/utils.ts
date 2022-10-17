@@ -1,13 +1,36 @@
 import P5 from "p5";
 
+class Stack<T> {
+    private storage: T[] = [];
+
+    push(item: T): void {
+        this.storage.push(item);
+    }
+
+    pop(): T | undefined {
+      return this.storage.pop();
+    }
+
+    peek(): T | undefined {
+      return this.storage[this.size() - 1];
+    }
+
+    size(): number {
+      return this.storage.length;
+    }
+}
+
 class Point {
     x: number;
     y: number;
+
+    constructor(x: number, y: number) {
+        this.x = x;
+        this.y = y;
+    }
 }
 
-class Draggable implements Point {
-    x: number;
-    y: number;
+class Draggable extends Point {
     w: number;
     h: number;
     offsetX: number;
@@ -17,11 +40,10 @@ class Draggable implements Point {
     rollover: boolean;
 
     constructor(x: number, y: number, w: number, h: number) {
+        super(x, y);
         this.dragging = false; // Is the object being dragged?
         this.rollover = false; // Is the mouse over the ellipse?
 
-        this.x = x;
-        this.y = y;
         // Dimensions
         this.w = w;
         this.h = h;
@@ -45,8 +67,9 @@ class Draggable implements Point {
         }
     }
 
-    show(p5: P5) {
+    draw(p5: P5) {
         p5.stroke(0);
+        p5.strokeWeight(1);
         // Different fill based on state
         if (this.dragging) {
             p5.fill(50);
@@ -76,12 +99,9 @@ class Draggable implements Point {
 }
 
 class DraggablePoint extends Draggable {
-    x: number;
-    y: number;
-
     constructor(x: number, y: number) {
         super(x, y, 10, 10);
     }
 }
 
-export {Point, Draggable, DraggablePoint};
+export {Stack, Point, Draggable, DraggablePoint};

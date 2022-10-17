@@ -1,12 +1,12 @@
 import P5 from "p5";
-import "p5/lib/addons/p5.dom"
+import "p5/lib/addons/p5.dom";
 
-import {ComplexNumber, MobiusTransformation} from "./linalg"
-import {Vector, Model, PoincareModel} from "./model"
-import {Point, Draggable, DraggablePoint} from "./utils"
+import {Vector, ComplexNumber, MobiusTransformation} from "./linalg";
+import {Model, PoincareModel, KleinModel} from "./model";
+import {Point, Draggable, DraggablePoint} from "./utils";
 
 const sketch = (p5: P5) => {
-    let model: PoincareModel;
+    let model: KleinModel;
     let draggables: Draggable[] = [];
 
     let p: DraggablePoint;
@@ -18,10 +18,12 @@ const sketch = (p5: P5) => {
 
 		p5.background("white");
 
-        model = new PoincareModel({x: 210, y: 210}, 400);
+        model = new KleinModel({x: 210, y: 210}, 400);
 
-        let z = new ComplexNumber(1, 0);
-        let w = new ComplexNumber(0, 1);
+        // model = new PoincareModel({x: 210, y: 210}, 400);
+
+        let z = new ComplexNumber(-.5, 0);
+        let w = new ComplexNumber(.5, 0);
 
         let _p = model.modelToCanvas(z);
         let _q = model.modelToCanvas(w);
@@ -59,7 +61,16 @@ const sketch = (p5: P5) => {
         model.drawPoint(p5, model.canvasToModel(p));
         model.drawPoint(p5, model.canvasToModel(q));
 
-        model.drawGeodesic(p5, model.canvasToModel(p), model.canvasToModel(q));
+        let z = model.canvasToModel(p);
+        let w = model.canvasToModel(q);
+
+        let [a,b] = model.chord(z, w);
+
+        model.drawGeodesic(p5, z, w);
+        model.drawGeodesic(p5, a, b);
+        model.drawPoint(p5, a)
+        model.drawPoint(p5, b)
+        console.log(model.d(z,w));
 
         let modelMouse = model.canvasToModel({x: p5.mouseX, y: p5.mouseY});
         if (modelMouse.normSquared() > 1) {
@@ -70,7 +81,7 @@ const sketch = (p5: P5) => {
         for (let draggable of draggables) {
             draggable.update(p5);
             draggable.over(p5);
-            draggable.show(p5);
+            draggable.draw(p5);
         }
 	};
 

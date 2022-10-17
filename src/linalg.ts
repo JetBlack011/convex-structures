@@ -1,9 +1,9 @@
-class Matrix {
-    mat: number[][];
+class Matrix<T extends number | ComplexNumber> {
+    mat: T[][];
     rows: number;
     columns: number;
 
-    constructor(rows: number, columns: number, mat?: number[][]) {
+    constructor(rows: number, columns: number, mat?: T[][]) {
         this.rows = rows;
         this.columns = columns;
 
@@ -13,8 +13,9 @@ class Matrix {
             this.mat = new Array(rows);
             for (let i = 0; i < rows; ++i) {
                 this.mat[i] = new Array(columns);
-                for (let j = 0; j < columns; ++j)
-                    this.mat[i][j] = 0;
+                for (let j = 0; j < columns; ++j) {
+                    this.mat[i][j] = 0; // ????
+                }
             }
         }
     }
@@ -230,6 +231,7 @@ class ComplexNumber extends Vector {
 
 interface Transformation {
     T(v: Vector): Vector;
+    compose(other: Transformation): Transformation;
 }
 
 class LinearTransformation extends Matrix implements Transformation {
@@ -240,9 +242,14 @@ class LinearTransformation extends Matrix implements Transformation {
     T(v: Vector): Vector {
         return new Vector(v.rows, this.multiply(v).mat);
     }
+
+    compose(other: LinearTransformation): Transformation {
+        let result = this.multiply(other);
+        return new LinearTransformation(result.rows, result.columns, result.mat);
+    }
 }
 
-class MobiusTransformation extends Matrix implements Transformation {
+class MobiusTransformation extends Matrix<ComplexNumber> implements Transformation {
     a: ComplexNumber;
     b: ComplexNumber;
     c: ComplexNumber;
@@ -282,6 +289,11 @@ class MobiusTransformation extends Matrix implements Transformation {
         return z.multiply(this.a).add(this.b).divide(z.multiply(this.c).add(this.d));
     }
 
+    compose(other: MobiusTransformation): MobiusTransformation {
+        let result = this.multiply(other);
+        return new MobiusTransformation(
+    }
+
     setAsIdentity() {
         super.setAsIdentity();
         this.a = new ComplexNumber(1, 0);
@@ -291,4 +303,4 @@ class MobiusTransformation extends Matrix implements Transformation {
     }
 }
 
-export {Matrix, Vector, ComplexNumber, LinearTransformation, MobiusTransformation};
+export {Matrix, Vector, ComplexNumber, Transformation, LinearTransformation, MobiusTransformation};
