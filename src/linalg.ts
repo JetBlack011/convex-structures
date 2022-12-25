@@ -1,20 +1,39 @@
-class Matrix<T extends number | ComplexNumber> {
-    mat: T[][];
+import { inv } from 'mathjs';
+
+class Matrix {
+    mat: number[][];
     rows: number;
     columns: number;
 
-    constructor(rows: number, columns: number, mat?: T[][]) {
+    static identity(n: number): Matrix {
+        let mat = [];
+        for (let i = 0; i < n; ++i) {
+            mat.push([]);
+            for (let j = 0; j < n; ++j) {
+                mat[i].push(i == j ? 1 : 0);
+            }
+        }
+        return new Matrix(n, n, mat);
+    }
+
+    static fromMatrix(mat: Matrix) {
+        return new this(mat.rows, mat.columns, mat.mat);
+    }
+
+    constructor(rows: number, columns: number, mat?: number[][]) {
         this.rows = rows;
         this.columns = columns;
 
-        if (typeof mat !== 'undefined')
+        if (typeof mat !== 'undefined') {
+            if (mat.length != rows || mat[0].length != columns)
+                throw new Error("Number of rows and columns must match given matrix!");
             this.mat = mat;
-        else {
+        } else {
             this.mat = new Array(rows);
             for (let i = 0; i < rows; ++i) {
                 this.mat[i] = new Array(columns);
                 for (let j = 0; j < columns; ++j) {
-                    this.mat[i][j] = 0; // ????
+                    this.mat[i][j] = 0;
                 }
             }
         }
@@ -37,8 +56,8 @@ class Matrix<T extends number | ComplexNumber> {
      */
     getCofactor(row: number, col: number): Matrix {
         return new Matrix(this.rows - 1, this.columns - 1, this.mat
-            .filter((v, i) => i !== row) // Remove the unnecessary row
-            .map((c) => c.filter((v, i) => i !== col)));
+            .filter((_, i) => i !== row) // Remove the unnecessary row
+            .map((c) => c.filter((_, i) => i !== col)));
     }
 
     /**
@@ -48,11 +67,16 @@ class Matrix<T extends number | ComplexNumber> {
     determinant(): number {
         let det = 0;
         let sign = 1;
-        if (this.rows === 2) {
+        switch (this.rows) {
+        case 1:
+            det = this.mat[0][0];
+            break;
+        case 2:
             det = this.mat[0][0] * this.mat[1][1] - this.mat[1][0] * this.mat[0][1];
-        } else {
+            break;
+        default:
             for (let i = 0; i < this.rows; i++) {
-                const minor = this.getCofactor(0, i);
+                let minor = this.getCofactor(0, i);
                 det += sign * this.at(0, i) * minor.determinant();
                 sign = -sign;
             }
@@ -65,36 +89,37 @@ class Matrix<T extends number | ComplexNumber> {
      * @return A new matrix sized (columns) x (rows)
      */
     transpose(): Matrix {
-        return new Matrix(this.columns, this.rows, new Array<number[]>(this.columns).fill([])
-            .map((row, i) => new Array<number>(this.rows).fill(0).map((c, j) => this.at(j, i))));
+        let mat0 = [];
+        for (let i = 0; i < this.columns; ++i)
+            mat0.push([]);
+
+        for (let i = 0; i < this.rows; ++i) {
+            for (let j = 0; j < this.columns; ++j)
+                mat0[j].push(this.mat[i][j]);
+        }
+
+        return new Matrix(this.columns, this.rows, mat0);
     }
 
     inverse(): Matrix {
-        const det = this.determinant();
+        return new Matrix(this.rows, this.columns, inv(this.mat)); // TODO: this is cringe
+        //let det = this.determinant();
+        //if (det === 0)
+        //    throw new Error("Determinant cannot be 0!");
 
-        // Get cofactor matrix
-        let sign = -1;
-        const cofactor = new Matrix (this.rows, this.columns,
-            this.mat.map((row, i) => row.map((val, j) => {
-                sign *= -1;
-                return sign * this.getCofactor(i, j).determinant();
-            })));
-        // Transpose it
-        const transposedCofactor = cofactor.transpose();
-        // Compute inverse of transposed / determinant on each value
-        return new Matrix(this.rows, this.columns,
-            this.mat.map((row, i) => row.map((val, j) => transposedCofactor.at(i, j) / det)));
-    }
+        //// Get cofactor matrix
+        //let sign = -1;
+        //let cofactor = new Matrix(this.rows, this.columns,
+        //    this.mat.map((row, i) => row.map((_, j) => {
+        //        sign *= -1;
+        //        return sign * this.getCofactor(i, j).determinant();
+        //    })));
 
-    /**
-     * Sets the matrix as an identity matrix
-     */
-    setAsIdentity(): void {
-        this.mat.forEach((row, i) => {
-            row.forEach((c, j) => {
-                this.mat[i][j] = i === j ? 1 : 0;
-            });
-        });
+        //// Transpose it
+        //let transposedCofactor = cofactor.transpose();
+        //// Compute inverse of transposed / determinant on each value
+        //return new Matrix(this.rows, this.columns,
+        //    this.mat.map((row, i) => row.map((_, j) => transposedCofactor.at(i, j) / det)));
     }
 
     multiply(other: Matrix): Matrix {
@@ -141,6 +166,21 @@ class Matrix<T extends number | ComplexNumber> {
 }
 
 class Vector extends Matrix {
+    static fromMatrix(mat: Matrix): Vector {
+        return new Vector(mat.rows, mat.mat);
+   }
+
+    static fromVector(v: Vector) {
+        return new Vector(v.rows, v.mat);
+    }
+
+    static fromList(...arr: number[]) {
+        let mat = [];
+        for (let i = 0; i < arr.length; ++i)
+            mat.push([arr[i]]);
+        return new Vector(arr.length, mat);
+    }
+
     constructor(rows: number, mat?: number[][]) {
         super(rows, 1, mat);
     }
@@ -185,30 +225,42 @@ class Vector extends Matrix {
         return this.scale(1/this.norm());
     }
 
+    homogenize(idx: number = this.rows - 1): Vector {
+        let z = this.at(idx);
+        let l: number[] = [];
+        for (let i = 0; i < this.mat.length; ++i)
+            l.push(this.at(i) / z);
+        return Vector.fromList(...l);
+    }
+
     equals(other: Vector): boolean {
         return super.equals(other);
     }
 }
 
-class ComplexNumber extends Vector {
+class ComplexNumber {
     Re: number;
     Im: number;
 
-    constructor(Re: number, Im: number) {
-        super(2, [[Re], [Im]]);
+    static fromVector(v: Vector): ComplexNumber {
+        return new ComplexNumber(v.at(0), v.at(1));
+    }
 
+    constructor(Re: number, Im: number) {
         this.Re = Re;
         this.Im = Im;
     }
 
+    negative(): ComplexNumber {
+        return new ComplexNumber(-this.Re, -this.Im);
+    }
+
     add(other: ComplexNumber): ComplexNumber {
-        let result = super.add(other);
-        return new ComplexNumber(result.at(0), result.at(1));
+        return new ComplexNumber(this.Re + other.Re, this.Im + other.Im);
     }
 
     subtract(other: ComplexNumber): ComplexNumber {
-        let result = super.subtract(other);
-        return new ComplexNumber(result.at(0), result.at(1));
+        return this.add(other.negative());
     }
 
     multiply(other: ComplexNumber): ComplexNumber {
@@ -220,86 +272,102 @@ class ComplexNumber extends Vector {
     }
 
     normalize(): ComplexNumber {
-        let result = super.normalize();
-        return new ComplexNumber(result.at(0), result.at(1));
+        let mod = this.modulus();
+        return new ComplexNumber(this.Re / mod, this.Im / mod);
+    }
+
+    conjugate(): ComplexNumber {
+        return new ComplexNumber(this.Re, -this.Im);
     }
 
     modulus(): number {
-        return super.norm();
+        return Math.sqrt(this.Re**2 + this.Im**2);
     }
 }
 
 interface Transformation {
-    T(v: Vector): Vector;
+    T(x: Vector): Vector;
     compose(other: Transformation): Transformation;
+    inverse(): Transformation;
+    clone(): Transformation;
 }
 
-class LinearTransformation extends Matrix implements Transformation {
+class LinearTransformation implements Transformation {
+    mat: Matrix;
+
+    static identity(n: number): LinearTransformation {
+        return LinearTransformation.fromMatrix(Matrix.identity(n));
+    }
+
+    static fromMatrix(mat: Matrix): LinearTransformation {
+        return new LinearTransformation(mat.rows, mat.columns, mat.mat);
+    }
+
     constructor(rows: number, columns: number, mat?: number[][]) {
-        super(rows, columns, mat);
+        this.mat = new Matrix(rows, columns, mat);
     }
 
     T(v: Vector): Vector {
-        return new Vector(v.rows, this.multiply(v).mat);
+        return Vector.fromMatrix(this.mat.multiply(v));
     }
 
-    compose(other: LinearTransformation): Transformation {
-        let result = this.multiply(other);
-        return new LinearTransformation(result.rows, result.columns, result.mat);
+    compose(other: LinearTransformation): LinearTransformation {
+        return LinearTransformation.fromMatrix(this.mat.multiply(other.mat));
+    }
+
+    inverse(): LinearTransformation {
+        return LinearTransformation.fromMatrix(this.mat.inverse());
+    }
+    
+    clone(): LinearTransformation {
+        return LinearTransformation.fromMatrix(Matrix.fromMatrix(this.mat));
+    }
+
+    transpose(): LinearTransformation {
+        return LinearTransformation.fromMatrix(this.mat.transpose());
     }
 }
 
-class MobiusTransformation extends Matrix<ComplexNumber> implements Transformation {
+class MobiusTransformation implements Transformation {
     a: ComplexNumber;
     b: ComplexNumber;
     c: ComplexNumber;
     d: ComplexNumber;
 
-    constructor(a?: ComplexNumber, b?: ComplexNumber, c?: ComplexNumber, d?: ComplexNumber) {
-        if (typeof a !== 'undefined')
-            super(4, 4, [[a.Re, a.Im, b.Re, b.Im], [c.Re, c.Im, d.Re, d.Im]]);
-        else
-            super(4, 4);
+    static identity(): MobiusTransformation {
+        let a = new ComplexNumber(1, 0);
+        let b = new ComplexNumber(0, 0);
+        let c = new ComplexNumber(0, 0);
+        let d = new ComplexNumber(1, 0);
+        return new MobiusTransformation(a, b, c, d);
+    }
 
-        if (typeof a !== 'undefined')
-            this.a = a;
-        else
-            this.a = new ComplexNumber(0, 0);
-
-        if (typeof b !== 'undefined')
-            this.b = b;
-        else
-            this.b = new ComplexNumber(0, 0);
-
-        if (typeof c !== 'undefined')
-            this.c = c;
-        else
-            this.c = new ComplexNumber(0, 0);
-
-        if (typeof d !== 'undefined')
-            this.d = d;
-        else
-            this.d = new ComplexNumber(0, 0);
+    constructor(a: ComplexNumber, b: ComplexNumber, c: ComplexNumber, d: ComplexNumber) {
+        this.a = a;
+        this.b = b;
+        this.c = c;
+        this.d = d;
     }
 
     /**
      * z represents a complex number, hence is necessarily 2D
      */
-    T(z: ComplexNumber): ComplexNumber {
-        return z.multiply(this.a).add(this.b).divide(z.multiply(this.c).add(this.d));
+    T(v: Vector): Vector {
+        let z = ComplexNumber.fromVector(v);
+        let result = z.multiply(this.a).add(this.b).divide(z.multiply(this.c).add(this.d));
+        return new Vector(2, [[result.Re], [result.Im]]);
     }
 
     compose(other: MobiusTransformation): MobiusTransformation {
-        let result = this.multiply(other);
-        return new MobiusTransformation(
+        let a0 = this.a.multiply(other.a).add(this.b.multiply(other.c));
+        let b0 = this.a.multiply(other.b).add(this.b.multiply(other.d));
+        let c0 = this.c.multiply(other.a).add(this.d.multiply(other.c));
+        let d0 = this.c.multiply(other.b).add(this.d.multiply(other.d));
+        return new MobiusTransformation(a0, b0, c0, d0);
     }
 
-    setAsIdentity() {
-        super.setAsIdentity();
-        this.a = new ComplexNumber(1, 0);
-        this.b = new ComplexNumber(0, 0);
-        this.c = new ComplexNumber(0, 0);
-        this.d = new ComplexNumber(1, 0);
+    inverse(): MobiusTransformation {
+        return new MobiusTransformation(this.d, this.b.negative(), this.c.negative(), this.a);
     }
 }
 

@@ -1,5 +1,9 @@
 import P5 from "p5";
 
+function randInt(min: number, max: number): number {
+    return Math.floor(Math.random() * (max - min)) + min;
+}
+
 class Stack<T> {
     private storage: T[] = [];
 
@@ -104,4 +108,4 @@ class DraggablePoint extends Draggable {
     }
 }
 
-export {Stack, Point, Draggable, DraggablePoint};
+export {randInt, Stack, Point, Draggable, DraggablePoint};
