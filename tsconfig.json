@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
     "module": "ESNext",
+    "target": "ES6",
     "jsx": "preserve",
     "esModuleInterop": true,
     "sourceMap": true,
     "allowJs": true,
     "lib": [
-      "es2016",
+      "ES6",
       "dom"
     ],
     "rootDir": "src",

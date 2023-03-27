@@ -2,18 +2,20 @@ import P5 from "p5";
 import "p5/lib/addons/p5.dom";
 
 import {Vector, ComplexNumber, MobiusTransformation, LinearTransformation} from "./linalg";
-import {Simplex, Model, PoincareModel, KleinModel} from "./model";
+import {Model, PoincareModel, KleinModel, PCModel} from "./model";
 import {Point, Draggable, DraggablePoint, randInt} from "./utils";
 
 const sketch = (p5: P5) => {
-    let model: Model;
+    let model: PCModel;
     let draggables: Draggable[] = [];
 
-    let generators: LinearTransformation[] = [];
+    let pModel: Vector = Vector.fromList(0, 0, 1);
+    let qModel: Vector = Vector.fromList(0.5, 0, 1);
+    let pCanvas: Point;
+    let qCanvas: Point;
 
-    let x0: Vector;
-    let p: Vector;
-    let q: Vector;
+    let bulgeSlider;
+    let prevBulge: number;
 
 	p5.setup = () => {
 		const canvas = p5.createCanvas(1000, 800);
@@ -21,19 +23,17 @@ const sketch = (p5: P5) => {
 
 		p5.background("white");
 
-        model = new KleinModel({x: 210, y: 210}, 400);
+        bulgeSlider = p5.createSlider(-4, 4, .01, 0);
+        bulgeSlider.position(10, 10);
+        bulgeSlider.style('width', '80px');
 
-        x0 = Vector.fromList(0, 0, 1);
-        p = Vector.fromList(0.5, 0, 1);
-        q = Vector.fromList(0, 0.5, 1);
+        model = new PCModel({x: 210, y: 210}, 100, Math.sqrt(2)/2);
+        pCanvas = model.modelToCanvas(pModel);
+        qCanvas = model.modelToCanvas(qModel);
 
-        model.drawPoint(p5, p);
-        model.drawPoint(p5, q);
+        draggables.push(new DraggablePoint(pCanvas.x, pCanvas.y));
+        draggables.push(new DraggablePoint(qCanvas.x, qCanvas.y));
 
-        model.tesselate(p5, [p, q]);
-
-        //console.log(model.d(x0, q));
-        
         // Triangular reflection group case
         /*************
         let coshphi = 2/Math.sqrt(3) * Math.sqrt((2 + Math.sqrt(2))/2);
@@ -71,12 +71,6 @@ const sketch = (p5: P5) => {
         }
         *******/
 
-        //let s = new Simplex([Vector.fromList(0, 0, 1), Vector.fromList(.5, 0, 1), Vector.fromList(0, .5, 1)]);
-        //let circumcircle = s.circumcircle(model);
-        //let circumcenter = model.modelToCanvas(circumcircle[0]);
-        //p5.strokeWeight(3);
-        //p5.point(circumcenter.x, circumcenter.y);
-
         /*******
         // Draw bisector between p and q by looking at each pixel
         let epsilon = .1;
@@ -103,26 +97,50 @@ const sketch = (p5: P5) => {
 	};
 
 	p5.draw = () => {
-        //p5.clear();
-
         p5.noFill();
+        p5.clear();
+
+        let bulge = bulgeSlider.value();
+        if (bulge != prevBulge) {
+            prevBulge = bulge;
+            model.setBulge(Math.sqrt(2)/2 * Math.exp(bulge));
+
+        // let epsilon = .1;
+        // let A = [];
+
+        // for (let i = Math.min(pCanvas.y, qCanvas.y) - 10; i < Math.min(pCanvas.y, qCanvas.y) + 10; i += 0.5) {
+        //     for (let j = pCanvas.x; j < qCanvas.x; j += 0.5) {
+        //         let P = model.canvasToModel({x: i, y: j});
+        //         if (Math.abs(model.d(pModel, P) - model.d(P, qModel)) < epsilon)
+        //             A.push(P);
+        //     }
+        // }
+
+        // console.log(A);
+
+        // for (let i = 0; i < A.length; ++i)
+        //     model.drawPoint(p5, A[i]);
+
+        //console.log(model.d(x, y));
+        }
 
         model.draw(p5);
-        //model.drawPoint(p5, x0);
-        //model.drawPoint(p5, q);
-        //let a = model.modelToCanvas(x0);
-        //let b = model.modelToCanvas(q);
-        //p5.stroke('blue');
-        //p5.point(a.x, a.y);
-        //p5.stroke('red');
-        //p5.point(b.x, b.y);
 
-        let modelMouse = model.canvasToModel({x: p5.mouseX, y: p5.mouseY});
-        if (modelMouse.normSquared() > 1) {
-            let newMouse = model.modelToCanvas(modelMouse.normalize());
-            p5.mouseX = newMouse.x;
-            p5.mouseY = newMouse.y;
-        }
+        pModel = model.canvasToModel(draggables[0]);
+        qModel = model.canvasToModel(draggables[1]);
+        let [a,b] = model.chord(pModel, qModel);
+        model.drawPoint(p5, a);
+        model.drawPoint(p5, b);
+        p5.strokeWeight(1);
+        p5.stroke('blue');
+        p5.line(model.modelToCanvas(a).x, model.modelToCanvas(a).y, model.modelToCanvas(b).x, model.modelToCanvas(b).y);
+
+        //let modelMouse = model.canvasToModel({x: p5.mouseX, y: p5.mouseY});
+        //if (modelMouse.normSquared() > 1) {
+        //    let newMouse = model.modelToCanvas(modelMouse.normalize());
+        //    p5.mouseX = newMouse.x;
+        //    p5.mouseY = newMouse.y;
+        //}
         for (let draggable of draggables) {
             draggable.update(p5);
             draggable.over(p5);

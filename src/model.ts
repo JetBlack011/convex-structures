@@ -1,8 +1,8 @@
 import P5 from "p5";
 
-import {randInt, Stack, Point} from './utils';
-import {Matrix, Vector, ComplexNumber, Transformation, LinearTransformation, MobiusTransformation} from "./linalg";
-import {Edge, Simplex} from './geometry';
+import {randInt, Stack} from './utils';
+import {Matrix, Vector, ComplexNumber, Transformation, LinearTransformation, MobiusTransformation, EPSILON} from "./linalg";
+import {Edge, Simplex, Point} from './geometry';
 
 type MetricFunction = (v1: Vector, v2: Vector) => number;
 
@@ -227,45 +227,199 @@ class PoincareModel extends DiskModel { // TODO: Fix frameStack here
 }
 
 interface ConvexDomain extends Model {
-    chord(z: Vector, w: Vector): [Vector, Vector];
+    //chord(z: Vector, w: Vector): [Vector, Vector];
     crossRatio(z: Vector, w: Vector): number;
 }
 
-class PCModel implements Model, ConvexDomain {
+class PCModel implements ConvexDomain {
+    private static STEPS = 900;
+    private static C: Matrix = new Matrix([[2, -1, -1], [-2, 2, -1], [-1, -1, 2]]);
+
+    generators: LinearTransformation[];
+    bulge: number;
+    // TODO: Make these sets
+    interior: Edge[] = [];
+    boundary: Edge[];
+
     drawOrigin: Point;
+    drawScale: number;
     frameStack: Stack<Transformation>;
     
-    constructor(drawOrigin: Point, bulge: number = 1) {
+    /**
+     * @param {Point} drawOrigin - The point at which to draw the disk
+     * @param {LinearTransformation[]} generators - Generators of the subgroup of SL_3(R)
+     *     which divide this convex domain
+     * @param{number} bulge - Bulging parameter
+     */
+    constructor(drawOrigin: Point, drawScale: number, bulge: number = 1) {
         this.drawOrigin = drawOrigin;
+        this.drawScale = drawScale;
+        //this.generators = generators;
+
+        this.setBulge(bulge);
+    }
+
+    setBulge(bulge: number): void {
+        this.bulge = bulge;
+
+        const p1 = Vector.fromList(1, 0, 1);
+        const p2 = Vector.fromList(-0.5, Math.sqrt(3)/2, 1);
+        const p3 = Vector.fromList(-0.5, -Math.sqrt(3)/2, 1);
+
+        const alpha1: Vector = p2.cross(p3);
+        const alpha2: Vector = p3.cross(p1);
+        const alpha3: Vector = p1.cross(p2);
+
+        const l = Math.cos(Math.PI/4);
+        const cartanMatrix = new Matrix([
+            [2,        -2 * l, -4 * Math.pow(l, 2) * bulge],
+            [-2 * l,   2,      -2 * l                     ],
+            [-1/bulge, -2 * l, 2                          ]
+        ]);
+
+        const V = Matrix.fromBasis(alpha1, alpha2, alpha3)
+            .transpose()
+            .inverse()
+            .multiply(cartanMatrix)
+            .transpose();
+        const v1 = Vector.fromList(...V.mat[0]);
+        const v2 = Vector.fromList(...V.mat[1]);
+        const v3 = Vector.fromList(...V.mat[2]);
+
+        const r1 = Matrix.identity(3).subtract(v1.multiply(alpha1.transpose()));
+        const r2 = Matrix.identity(3).subtract(v2.multiply(alpha2.transpose()));
+        const r3 = Matrix.identity(3).subtract(v3.multiply(alpha3.transpose()));
+
+        let g = [r1, r2, r3];
+        for (let i = 0; i < PCModel.STEPS; ++i) {
+            g.push(g[i].multiply(g[0]));
+            g.push(g[i].multiply(g[1]));
+            g.push(g[i].multiply(g[2]));
+        }
+
+        this.boundary = [[p1, p2], [p2, p3], [p3, p1]];
+
+        for (let i = 1; i < g.length - 2680; ++i) {
+            if (g[i].equals(Matrix.identity(3), EPSILON))
+                continue;
+            const PMat = g[i].multiply(Matrix.fromBasis(p1, p2, p3)).transpose();
+
+            const P1 = Vector.fromList(...PMat.mat[0]).homogenize();
+            const P2 = Vector.fromList(...PMat.mat[1]).homogenize();
+            const P3 = Vector.fromList(...PMat.mat[2]).homogenize();
+
+            const newLines: Edge[] = [[P1, P2], [P2, P3], [P3, P1]];
+            const newVertices: Vector[] = [newLines[0], newLines[1]].flat();
+
+            this.interior.push(...newLines);
+            this.boundary.push(...newLines);
+
+            for (let i = 0; i < newVertices.length; ++i) {
+                let vertex = newVertices[i];
+                for (let j = 0; j < this.boundary.length; ++j) {
+                    let edge = this.boundary[j];
+                    if (edge[0].equals(vertex, EPSILON) || edge[1].equals(vertex, EPSILON)) {
+                        // TODO
+                        if (edge is in interior)
+                            this.boundary.remove(edge);
+                    }
+                }
+            }
+            //// Update our boundary
+            //for (let j = 0; j < newLines.length; ++j) {
+            //    const L: Edge = newLines[j];
+            //    let inBoundary: Boolean = false;
+
+            //    // Prune the repeat edges (there will always be at least one, since this is a reflection group)
+            //    for (let k = 0; k < this.boundary.length; ++k) {
+            //        if (L[0].equals(this.boundary[k][0], EPSILON) && L[1].equals(this.boundary[k][1], EPSILON)
+            //            || L[0].equals(this.boundary[k][1], EPSILON) && L[1].equals(this.boundary[k][0], EPSILON)) {
+            //            this.interior.push(this.boundary[k]);
+            //            this.boundary.splice(k--, 1);
+            //            inBoundary = true;
+            //        }
+            //    }
+            //    // If this edge is not already in the boundary, add it
+            //    if (!inBoundary) 
+            //        this.boundary.push(L);
+            //}
+        }
     }
     
-    chord(z: Vector, w: Vector): [Vector, Vector] {
-        return [Vector.fromList(5, 0), Vector.fromList(0, 5)]; // TODO
+    chord(x: Vector, y: Vector): [Vector, Vector] {
+        const ray: Vector = x.subtract(y);
+        let tMin = Infinity;
+        let tMax = -Infinity;
+        let a: Vector = x;
+        let b: Vector = y;
+
+        let ts: Vector;
+        let tw: Vector;
+        let tt1: number;
+        let tt2: number;
+
+        for (let i = 0; i < this.boundary.length; ++i) {
+            let s = this.boundary[i][0];
+            let w = this.boundary[i][1].subtract(s);
+            let intersectionPoint = Vector.fromList(
+                -(-ray.at(0) * s.at(1) * w.at(0) + ray.at(0) * s.at(0) * w.at(1) - ray.at(1) * w.at(0) * x.at(0) + ray.at(0) * w.at(0) * x.at(1))/(ray.at(1) * w.at(0) - ray.at(0) * w.at(1)),
+                -((ray.at(1) * s.at(1) * w.at(0) - ray.at(1) * s.at(0) * w.at(1) + ray.at(1) * w.at(1) * x.at(0) - ray.at(0) * w.at(1) * x.at(1))/(-ray.at(1) * w.at(0) + ray.at(0) * w.at(1)))
+            );
+            let t1 = -((s.at(1) * w.at(0) - s.at(0) * w.at(1) + w.at(1) * x.at(0) - w.at(0) * x.at(1))/(-ray.at(1) * w.at(0) + ray.at(0) * w.at(1)))
+            let t2 = -((ray.at(1) * s.at(0) - ray.at(0) * s.at(1) - ray.at(1) * x.at(0) + ray.at(0) * x.at(1))/(ray.at(1) * w.at(0) - ray.at(0) * w.at(1)))
+            
+            // We actually intersect this line segment
+            if (t2 >= 0 && t2 <= 1) {
+                if (t1 < tMin) {
+                    tMin = t1;
+                    a = intersectionPoint;
+                }
+                if (t1 > tMax) {
+                    tMax = t1;
+                    b = intersectionPoint;
+
+                    ts = s;
+                    tw = w;
+                    tt1 = t1;
+                    tt2 = t2;
+                }
+            }
+        }
+        //console.log(`s = ${[ts.at(0).toFixed(2), ts.at(1).toFixed(2)]}, w = ${[tw.at(0).toFixed(2), tw.at(1).toFixed(2)]}, t2 = ${tt2}\n`);
+
+        //p5.strokeWeight(5);
+        //p5.stroke('green');
+        //const tsCanvas = this.modelToCanvas(ts);
+        //const tPCanvas = this.modelToCanvas(ts.add(tw));
+        //p5.point(tsCanvas.x, tsCanvas.y);
+        //p5.point(tPCanvas.x, tPCanvas.y);
+
+        return [a, b];
     }
 
-    crossRatio(z: Vector, w: Vector): number {
-        let [a,b] = this.chord(z,w);
+    crossRatio(x: Vector, y: Vector): number {
+        let [a,b] = this.chord(x,y);
 
         // Make sure point ordering is correct
-        if (a.subtract(z).norm() > a.subtract(w).norm()) {
+        if (a.subtract(x).norm() > a.subtract(y).norm()) {
             let t = a;
             a = b;
             b = t;
         }
 
-        return (w.subtract(a).norm() * b.subtract(z).norm()) / (z.subtract(a).norm() * b.subtract(w).norm());
+        return (y.subtract(a).norm() * b.subtract(x).norm()) / (x.subtract(a).norm() * b.subtract(y).norm());
     }
 
-    d(z: Vector, w: Vector): number {
-        return 0.5 * Math.log(this.crossRatio(z, w));
+    d(p: Vector, q: Vector): number {
+        return 0.5 * Math.log(this.crossRatio(p, q));
     }
 
-    modelToCanvas(z: Vector): Point {
-        return {x: z.at(0) / 2 + this.drawOrigin.x, y: -z.at(1) / 2 + this.drawOrigin.y};
+    modelToCanvas(p: Vector): Point {
+        return {x: this.drawScale * p.at(0) + this.drawOrigin.x, y: -this.drawScale * p.at(1) + this.drawOrigin.y};
     }
 
     canvasToModel(p: Point): Vector {
-        return Vector.fromList((p.x - this.drawOrigin.x) / 2, -(p.y - this.drawOrigin.y) / 2);
+        return Vector.fromList((p.x - this.drawOrigin.x) / this.drawScale, -(p.y - this.drawOrigin.y) / this.drawScale, 1);
     }
 
     push(): void {
@@ -273,7 +427,7 @@ class PCModel implements Model, ConvexDomain {
     }
 
     pop(): Transformation {
-        return new LinearTransformation(0, 0); // TODO
+        return new LinearTransformation([]); // TODO
     }
 
     transfrom(T: Transformation): void {
@@ -281,11 +435,38 @@ class PCModel implements Model, ConvexDomain {
     }
 
     draw(p5: P5): void {
-        
+        p5.stroke('black');
+        p5.strokeWeight(1);
+        for (let i = 0; i < this.boundary.length; ++i) {
+            let pCanvas = this.modelToCanvas(this.boundary[i][0]);
+            let qCanvas = this.modelToCanvas(this.boundary[i][1]);
+            p5.line(pCanvas.x, pCanvas.y, qCanvas.x, qCanvas.y);
+        }
+
+        //p5.stroke(50, 168, 82);
+        //for (let i = 0; i < this.interior.length; ++i) {
+        //    let pCanvas = this.modelToCanvas(this.interior[i][0]);
+        //    let qCanvas = this.modelToCanvas(this.interior[i][1]);
+        //    p5.line(pCanvas.x, pCanvas.y, qCanvas.x, qCanvas.y);
+        //}
+        // p5.strokeWeight(5);
+        // p5.stroke('red');
+
+        // for (let i = 0; i < 100; ++i) {
+        //     let z = Vector.fromList(0, 0, 1);
+        //     for (let j = 0; j < 100; ++j) {
+        //         let p = this.modelToCanvas(z);
+        //         p5.point(p.x, p.y);
+        //         z = this.generators[randInt(0, 3)].T(z);
+        //     }
+        // }
     }
 
-    drawPoint(p5: P5, z: Vector): void {
-        
+    drawPoint(p5: P5, p: Vector): void {
+        p5.stroke('red');
+        p5.strokeWeight(5);
+        let a = this.modelToCanvas(p);
+        p5.point(a.x, a.y);
     }
 
     drawGeodesic(p5: P5, z: Vector, w: Vector): void {
@@ -433,4 +614,4 @@ class KleinModel extends DiskModel {
     }
 }
 
-export {MetricFunction, Model, KleinModel, PoincareModel};
+export {MetricFunction, Model, KleinModel, PoincareModel, PCModel};

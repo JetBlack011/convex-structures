@@ -1,0 +1,50 @@
+\documentclass[12pt]{article}%
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage[a4paper, top=1cm, bottom=1.5cm, left=2cm, right=2cm]{geometry}
+\usepackage{common-math}
+
+\begin{document}
+
+\title{Planning}
+\maketitle
+
+\section*{Goals:}
+\begin{enumerate}
+	\item Draw Hilbert bisectors.
+	\begin{enumerate}
+		\item Start with some convex domain $\Omega$ and compute the Hilbert metric $d_H$ using the cross-ratio. Then given two points $x,y \in \Omega$, draw the bisector $\{z \in \Omega : d_H(x,z) = d_H(z,y)\}$.
+		\begin{enumerate}
+			\item There are multiple ways to commute $d_H$. One idea is to keep track of the attracting hyperplanes when drawing the domain and just find which two best approximate where the endpoints $a,b$ for the chord through $x,y$ would land.
+			\item Since this isn't a huge priority and is kind of just for fun, the na\"ive algorithm should work: sample random points in the domain and compute distances, and if $d_H(x,z) - d_H(z,y) < \epsilon$ for some small $\epsilon$, draw them.
+			\item It is non-trivial to define these convex domains, and the best way to do so may be to deform a discrete representation of a group $G$ into $\PSL_2\R$ into $\SL_3\R$. For example, via a bulging or earthquake deformation.
+		\end{enumerate}
+	\end{enumerate}
+	\item Draw different convex domains.
+	\begin{enumerate}
+		\item As in 1(a)ii., it would be nice to visualize different types of deformations.
+		\item For example, bending deformations is a good place to start. A subgroup \[\Gamma_1 *_\Lambda \Gamma_2 \subset \PSL_{d + 1}\R\] can be deformed as follows: let $(B_t)_t \subset \PSL_{d + 1}\R$ be a path of elements starting at the identity and that commute with $\Lambda$. Then we can deform $i: \Gamma \to \PSL_{d + 1}\R$ to representations $\rho_t$ which are the identity on $\Gamma_1$ and send $\gamma_2 \in \Gamma_2$ to $B_t\gamma_2B_t^{-1}$. If $\Gamma$ divides some $\Omega$, then representations $\rho_t$ are injective, and $\rho_t(\Gamma)$ divides a properly convex domain $\Omega_t$. By the Ehresmann-Thurston principle, we have that \[\Omega_t/\rho_t(\Gamma) \approx_{\text{Diffeo}} \Omega/\Gamma\] for all $t$.
+
+			Observe, $\rho_t$ is well-defined since $B_t$ is in the identity component of the centralizer $\Z(\PSL_3\R)$, hence both components of the representation agree on $\Lambda$. We can construct $B_t$ as follows: $B_t = e^{tB}$ where \[B = \begin{pmatrix} -1 \\ &d \\ &&-1 \\ &&&\ddots \\ &&&&-1 \end{pmatrix}. \]  
+	\end{enumerate}
+	\item Draw the Dirichlet domain for these deformed representations on $\Omega$. This includes when $\Omega$ is the Klein model for $\bbH^n$.
+	\begin{enumerate}
+		\item This will involve drawing a Voronoi tessellation of $\Omega$ according to the orbit $\calO = \Gamma \cdot x_0$ of some point $x_0 \in \Omega$ with respect to $d_H$.
+		\begin{enumerate}
+			\item There are a number of algorithms to do this:
+			\begin{enumerate}
+				\item The na\"ive one. Loop through all of the points in $\Omega$ and find the closest point. Then color accordingly.
+				\item Something else.
+			\end{enumerate}
+		\end{enumerate}
+	\end{enumerate}
+	\item Draw the intersection of the Dirichlet domain of the induced action of $\Gamma$ on the symmetric space $\calP_n = \SL_n\R/\SO_n\R$ and a quadratically embedded copy of $\RP^2 \subset \partial \calP_3$ (via $\Sym^2$). This will give a ``fundamental domain'' of the original action of $\Gamma$ on $\Omega$ but with much nicer bisectors (quadratic curves).
+	\begin{enumerate}
+		\item In particular, we want to know when these Dirichlet domains are finitely sided. Use \href{https://arxiv.org/pdf/2302.00643.pdf}{https://arxiv.org/pdf/2302.00643.pdf} for a reference on known cases, and understand the cyclic ones.
+	\end{enumerate}
+\end{enumerate}
+
+\subsection*{3/26}
+Make progress on 1., 4(a), and 2. The order might be wacky, since we need a domain to draw Hilbert bisectors on in the first place. Basically, in order, we want to be able to deform $\bbH^2$ into some convex domain $\Omega$ on which we can draw Hilbert bisectors and eventually Voronoi tessellations. Probably best to start with bending deformations.
+
+\end{document}

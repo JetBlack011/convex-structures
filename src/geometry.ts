@@ -4,6 +4,16 @@ import {MetricFunction} from './model';
 type Edge = [Vector, Vector];
 type Circle = [Vector, number];
 
+class Point {
+    x: number;
+    y: number;
+
+    constructor(x: number, y: number) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
 class Simplex {
     n: number;          // Dimension
     vertices: Vector[]; // Vertex list
@@ -35,7 +45,7 @@ class Simplex {
             }
         }
 
-        let M = new Matrix(this.vertices.length + 1, this.vertices.length + 1, mat);
+        let M = new Matrix(mat);
         let Q = M.inverse();
         let barycentric_circumcenter = [];
 
@@ -46,7 +56,7 @@ class Simplex {
             barycentric_circumcenter.push(Q.at(0,i + 1) / s);
         }
 
-        let circumcenter = new Vector(this.n + 1);
+        let circumcenter = Vector.zeros(this.n + 1);
         circumcenter = circumcenter.scale(0);
         for (let i = 0; i <= this.n; ++i) {
             circumcenter = circumcenter.add(this.vertices[i].scale(barycentric_circumcenter[i]));
@@ -57,4 +67,4 @@ class Simplex {
     }
 }
 
-export {Edge, Circle, Simplex};
+export {Point, Edge, Circle, Simplex, Line};

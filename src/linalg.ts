@@ -1,5 +1,7 @@
 import { inv } from 'mathjs';
 
+const EPSILON = 0.0001;
+
 class Matrix {
     mat: number[][];
     rows: number;
@@ -13,30 +15,43 @@ class Matrix {
                 mat[i].push(i == j ? 1 : 0);
             }
         }
-        return new Matrix(n, n, mat);
+        return new Matrix(mat);
+    }
+
+    static zeros(n: number, m: number): Matrix {
+        let mat = [];
+        for (let i = 0; i < n; ++i) {
+            mat.push([]);
+            for (let j = 0; j < m; ++j) {
+                mat[i].push(0);
+            }
+        }
+        return new Matrix(mat);
     }
 
     static fromMatrix(mat: Matrix) {
-        return new this(mat.rows, mat.columns, mat.mat);
+        return new Matrix(mat.mat);
     }
 
-    constructor(rows: number, columns: number, mat?: number[][]) {
-        this.rows = rows;
-        this.columns = columns;
+    static fromBasis(...e: Vector[]) {
+        return new Matrix(
+            e.map((v) => v.transpose().mat[0])
+        ).transpose();
+    }
 
-        if (typeof mat !== 'undefined') {
-            if (mat.length != rows || mat[0].length != columns)
-                throw new Error("Number of rows and columns must match given matrix!");
-            this.mat = mat;
-        } else {
-            this.mat = new Array(rows);
-            for (let i = 0; i < rows; ++i) {
-                this.mat[i] = new Array(columns);
-                for (let j = 0; j < columns; ++j) {
-                    this.mat[i][j] = 0;
-                }
-            }
-        }
+    static E(i: number, j: number, n: number) {
+        let result = Matrix.zeros(n, n);
+        result.mat[i][j] = 1;
+        return result;
+    }
+
+    constructor(mat: number[][]) {
+        this.rows = mat.length;
+        this.columns = this.rows == 0 ? 0 : mat[0].length;
+
+        if (mat.length != this.rows || mat[0].length != this.columns)
+            throw new Error("Number of rows and columns must match given matrix!");
+        this.mat = mat;
     }
 
     /**
@@ -55,7 +70,7 @@ class Matrix {
      * @return The cofactor matrix sized (n-1)x(n-1)
      */
     getCofactor(row: number, col: number): Matrix {
-        return new Matrix(this.rows - 1, this.columns - 1, this.mat
+        return new Matrix(this.mat
             .filter((_, i) => i !== row) // Remove the unnecessary row
             .map((c) => c.filter((_, i) => i !== col)));
     }
@@ -98,35 +113,36 @@ class Matrix {
                 mat0[j].push(this.mat[i][j]);
         }
 
-        return new Matrix(this.columns, this.rows, mat0);
+        return new Matrix(mat0);
+    }
+
+    add(other: Matrix): Matrix {
+        if (this.rows != other.rows || this.columns != other.columns)
+            throw new Error("Dimension mismatch");
+
+        let result = Matrix.zeros(this.rows, this.columns);
+        for (let i = 0; i < result.rows; ++i) {
+            for (let j = 0; j < result.columns; ++j) {
+                result.mat[i][j] = this.at(i, j) + other.at(i, j);
+            }
+        }
+
+        return result;
+    }
+
+    subtract(other: Matrix): Matrix {
+        return this.add(other.negate());
     }
 
     inverse(): Matrix {
-        return new Matrix(this.rows, this.columns, inv(this.mat)); // TODO: this is cringe
-        //let det = this.determinant();
-        //if (det === 0)
-        //    throw new Error("Determinant cannot be 0!");
-
-        //// Get cofactor matrix
-        //let sign = -1;
-        //let cofactor = new Matrix(this.rows, this.columns,
-        //    this.mat.map((row, i) => row.map((_, j) => {
-        //        sign *= -1;
-        //        return sign * this.getCofactor(i, j).determinant();
-        //    })));
-
-        //// Transpose it
-        //let transposedCofactor = cofactor.transpose();
-        //// Compute inverse of transposed / determinant on each value
-        //return new Matrix(this.rows, this.columns,
-        //    this.mat.map((row, i) => row.map((_, j) => transposedCofactor.at(i, j) / det)));
+        return new Matrix(inv(this.mat)); // TODO: this is cringe
     }
 
     multiply(other: Matrix): Matrix {
         if (this.columns != other.rows)
             throw new Error("Dimension mismatch");
 
-        let result = new Matrix(this.rows, other.columns);
+        let result = Matrix.zeros(this.rows, other.columns);
 
         for (let i = 0; i < this.rows; ++i) {
             for (let j = 0; j < other.columns; ++j) {
@@ -140,7 +156,7 @@ class Matrix {
     }
 
     scale(c: number): Matrix {
-        let result = new Matrix(this.rows, this.columns);
+        let result = Matrix.zeros(this.rows, this.columns);
 
         for (let i = 0; i < this.rows; ++i) {
             for (let j = 0; j < this.columns; ++j)
@@ -150,13 +166,17 @@ class Matrix {
         return result;
     }
 
-    equals(other: Matrix): boolean {
+    negate(): Matrix {
+        return this.scale(-1);
+    }
+
+    equals(other: Matrix, epsilon: number = 0): boolean {
         if (this.rows != other.rows || this.columns != other.columns)
             return false;
 
         for (let i = 0; i < this.rows; ++i) {
             for (let j = 0; j < this.columns; ++j) {
-                if (this.mat[i][j] != other.mat[i][j])
+                if (Math.abs(this.mat[i][j] - other.mat[i][j]) > epsilon)
                     return false;
             }
         }
@@ -167,22 +187,28 @@ class Matrix {
 
 class Vector extends Matrix {
     static fromMatrix(mat: Matrix): Vector {
-        return new Vector(mat.rows, mat.mat);
+        return new Vector(mat.mat);
    }
 
-    static fromVector(v: Vector) {
-        return new Vector(v.rows, v.mat);
+    static fromVector(v: Vector): Vector {
+        return new Vector(v.mat);
+    }
+
+    static zeros(n: number): Vector {
+        return Vector.fromMatrix(Matrix.zeros(n, 1));
     }
 
     static fromList(...arr: number[]) {
         let mat = [];
         for (let i = 0; i < arr.length; ++i)
             mat.push([arr[i]]);
-        return new Vector(arr.length, mat);
+        return new Vector(mat);
     }
 
-    constructor(rows: number, mat?: number[][]) {
-        super(rows, 1, mat);
+    constructor(mat: number[][]) {
+        if (mat.length > 0 && mat[0].length > 1)
+            throw new Error("Given matrix does not define a vector!");
+        super(mat);
     }
 
     at(i: number) {
@@ -190,23 +216,26 @@ class Vector extends Matrix {
     }
 
     scale(c: number): Vector {
-        return new Vector(this.rows, super.scale(c).mat);
+        return Vector.fromMatrix(super.scale(c));
     }
 
     add(other: Vector): Vector {
-        if (other.rows != this.rows)
-            throw new Error("Dimension mismatch");
-
-        let result = new Vector(this.rows);
-
-        for (let i = 0; i < this.rows; ++i)
-            result.mat[i][0] = this.at(i) + other.at(i);
-
-        return result;
+        return Vector.fromMatrix(super.add(other));
     }
 
     subtract(other: Vector): Vector {
-        return this.add(other.scale(-1));
+        return Vector.fromMatrix(super.subtract(other));
+    }
+
+    cross(other: Vector): Vector {
+        if (this.rows != 3 || other.rows != 3)
+            throw new Error("Expected vectors with length 3");
+
+        return Vector.fromList(
+            this.at(1) * other.at(2) - this.at(2) * other.at(1),
+            this.at(2) * other.at(0) - this.at(0) * other.at(2),
+            this.at(0) * other.at(1) - this.at(1) * other.at(0)
+        );
     }
 
     dot(other: Vector): number {
@@ -233,8 +262,8 @@ class Vector extends Matrix {
         return Vector.fromList(...l);
     }
 
-    equals(other: Vector): boolean {
-        return super.equals(other);
+    equals(other: Vector, epsilon: number = 0): boolean {
+        return super.equals(other, epsilon);
     }
 }
 
@@ -300,11 +329,11 @@ class LinearTransformation implements Transformation {
     }
 
     static fromMatrix(mat: Matrix): LinearTransformation {
-        return new LinearTransformation(mat.rows, mat.columns, mat.mat);
+        return new LinearTransformation(mat.mat);
     }
 
-    constructor(rows: number, columns: number, mat?: number[][]) {
-        this.mat = new Matrix(rows, columns, mat);
+    constructor(mat?: number[][]) {
+        this.mat = new Matrix(mat);
     }
 
     T(v: Vector): Vector {
@@ -328,7 +357,8 @@ class LinearTransformation implements Transformation {
     }
 }
 
-class MobiusTransformation implements Transformation {
+// TODO: Figure this out
+class MobiusTransformation { //implements Transformation {
     a: ComplexNumber;
     b: ComplexNumber;
     c: ComplexNumber;
@@ -355,9 +385,10 @@ class MobiusTransformation implements Transformation {
     T(v: Vector): Vector {
         let z = ComplexNumber.fromVector(v);
         let result = z.multiply(this.a).add(this.b).divide(z.multiply(this.c).add(this.d));
-        return new Vector(2, [[result.Re], [result.Im]]);
+        return new Vector([[result.Re], [result.Im]]);
     }
 
+    /*
     compose(other: MobiusTransformation): MobiusTransformation {
         let a0 = this.a.multiply(other.a).add(this.b.multiply(other.c));
         let b0 = this.a.multiply(other.b).add(this.b.multiply(other.d));
@@ -369,6 +400,7 @@ class MobiusTransformation implements Transformation {
     inverse(): MobiusTransformation {
         return new MobiusTransformation(this.d, this.b.negative(), this.c.negative(), this.a);
     }
+    */
 }
 
-export {Matrix, Vector, ComplexNumber, Transformation, LinearTransformation, MobiusTransformation};
+export {Matrix, Vector, ComplexNumber, Transformation, LinearTransformation, MobiusTransformation, EPSILON};

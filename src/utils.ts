@@ -1,4 +1,5 @@
 import P5 from "p5";
+import { Point } from "./geometry";
 
 function randInt(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min)) + min;
@@ -21,16 +22,6 @@ class Stack<T> {
 
     size(): number {
       return this.storage.length;
-    }
-}
-
-class Point {
-    x: number;
-    y: number;
-
-    constructor(x: number, y: number) {
-        this.x = x;
-        this.y = y;
     }
 }
 
@@ -104,7 +95,7 @@ class Draggable extends Point {
 
 class DraggablePoint extends Draggable {
     constructor(x: number, y: number) {
-        super(x, y, 10, 10);
+        super(x, y, 5, 5);
     }
 }
 
