@@ -227,7 +227,7 @@ class PoincareModel extends DiskModel { // TODO: Fix frameStack here
 }
 
 interface ConvexDomain extends Model {
-    //chord(z: Vector, w: Vector): [Vector, Vector];
+    //chord(z: Vector, w: Vector): Edge;
     crossRatio(z: Vector, w: Vector): number;
 }
 
@@ -252,25 +252,33 @@ class PCModel implements ConvexDomain {
      *     which divide this convex domain
      * @param{number} bulge - Bulging parameter
      */
-    constructor(drawOrigin: Point, drawScale: number, bulge: number = 1) {
+    constructor(drawOrigin: Point, drawScale: number, bulge: number = 0) {
         this.drawOrigin = drawOrigin;
         this.drawScale = drawScale;
-        this.chordCache = [[null, null], [null, null]];
         //this.generators = generators;
 
         this.setBulge(bulge);
     }
 
     private rayCast(p: Vector, ray: Vector, q: Vector, w: Vector): [number, number, Vector] {
-        let intersectionPoint = Vector.fromList(
-            -(-ray.at(0) * q.at(1) * w.at(0) + ray.at(0) * q.at(0) * w.at(1) - ray.at(1) * w.at(0) * p.at(0) + ray.at(0) * w.at(0) * p.at(1))/(ray.at(1) * w.at(0) - ray.at(0) * w.at(1)),
-            -((ray.at(1) * q.at(1) * w.at(0) - ray.at(1) * q.at(0) * w.at(1) + ray.at(1) * w.at(1) * p.at(0) - ray.at(0) * w.at(1) * p.at(1))/(-ray.at(1) * w.at(0) + ray.at(0) * w.at(1))),
-            1
-        );
-        let t1 = -((q.at(1) * w.at(0) - q.at(0) * w.at(1) + w.at(1) * p.at(0) - w.at(0) * p.at(1))/(-ray.at(1) * w.at(0) + ray.at(0) * w.at(1)))
-        let t2 = -((ray.at(1) * q.at(0) - ray.at(0) * q.at(1) - ray.at(1) * p.at(0) + ray.at(0) * p.at(1))/(ray.at(1) * w.at(0) - ray.at(0) * w.at(1)))
+        let px = p.at(0);
+        let py = p.at(1);
+        let rayx = ray.at(0);
+        let rayy = ray.at(1);
+        let qx = q.at(0);
+        let qy = q.at(1);
+        let wx = w.at(0);
+        let wy = w.at(1);
 
-        return [t1, t2, intersectionPoint];
+        let intersectionPoint = [
+            [-(-rayx * qy * wx + rayx * qx * wy - rayy * wx * px + rayx * wx * py)/(rayy * wx - rayx * wy)],
+            [-((rayy * qy * wx - rayy * qx * wy + rayy * wy * px - rayx * wy * py)/(-rayy * wx + rayx * wy))],
+            [1]
+        ];
+        let t1 = -((qy * wx - qx * wy + wy * px - wx * py)/(-rayy * wx + rayx * wy))
+        let t2 = -((rayy * qx - rayx * qy - rayy * px + rayx * py)/(rayy * wx - rayx * wy))
+
+        return [t1, t2, new Vector(intersectionPoint)];
     }
 
     //rayCastCount(p: Vector, ray: Vector, p5?: P5): number {
@@ -289,7 +297,7 @@ class PCModel implements ConvexDomain {
     //}
 
     setBulge(bulge: number): void {
-        this.bulge = bulge;
+        this.bulge = Math.sqrt(2) / 2 * Math.exp(bulge);
 
         const p1 = Vector.fromList(1, 0, 1);
         const p2 = Vector.fromList(-0.5, Math.sqrt(3)/2, 1);
@@ -326,10 +334,10 @@ class PCModel implements ConvexDomain {
             g.push(g[i].multiply(g[2]));
         }
 
-        this.boundary = [[p1, p2], [p2, p3], [p3, p1]];
-        this.interior = [[p1, p2], [p2, p3], [p3, p1]];
+        this.boundary = [new Edge(p1, p2), new Edge(p2, p3), new Edge(p3, p1)];
+        this.interior = [new Edge(p1, p2), new Edge(p2, p3), new Edge(p3, p1)];
 
-        for (let i = 0; i < 70; ++i) {
+        for (let i = 0; i < g.length; ++i) {
             if (g[i].equals(Matrix.identity(3), EPSILON))
                 continue;
             const PMat = g[i].multiply(Matrix.fromBasis(p1, p2, p3)).transpose();
@@ -338,8 +346,7 @@ class PCModel implements ConvexDomain {
             const P2 = Vector.fromList(...PMat.mat[1]).homogenize();
             const P3 = Vector.fromList(...PMat.mat[2]).homogenize();
 
-            const newTriangle: Edge[] = [[P1, P2], [P2, P3], [P3, P1]];
-            this.interior.push(...newTriangle);
+            const newTriangle: Edge[] = [new Edge(P1, P2), new Edge(P2, P3), new Edge(P3, P1)];
 
             let newEdges: Edge[] = [];
             let dupEdges: Edge[] = [];
@@ -347,9 +354,8 @@ class PCModel implements ConvexDomain {
             for (let i = 0; i < newTriangle.length; ++i) {
                 let edge = newTriangle[i];
                 let edgeFound = false;
-                for (let j = 0; j < this.boundary.length; ++j) {
-                    if ((edge[0].equals(this.boundary[j][0], EPSILON) || edge[0].equals(this.boundary[j][1], EPSILON))
-                        && (edge[1].equals(this.boundary[j][0], EPSILON) || edge[1].equals(this.boundary[j][1], EPSILON))) {
+                for (let j = 0; j < this.interior.length; ++j) {
+                    if (edge.equals(this.interior[j])) {
                         edgeFound = true;
                         dupEdges.push(edge);
                     }
@@ -358,49 +364,74 @@ class PCModel implements ConvexDomain {
                     newEdges.push(edge);
             }
 
-            //console.log(newEdges.length, dupEdges.length);
-
-            console.log(newEdges.length, dupEdges.length);
-            if (i == 69)
-                console.log(`69 lol: ${newEdges.length}, ${dupEdges.length}`);
-            if (newEdges.length == 3)
+            if (dupEdges.length == 3)
                 continue;
 
+            this.boundary.push(...newEdges);
+            this.interior.push(...newEdges);
             for (let i = 0; i < this.boundary.length; ++i) {
                 let edge = this.boundary[i];
-                for (let j = 0; j < dupEdges.length; ++j) {
-                    if ((edge[0].equals(dupEdges[j][0], EPSILON) || edge[0].equals(dupEdges[j][1], EPSILON))
-                        && (edge[1].equals(dupEdges[j][0], EPSILON) || edge[1].equals(dupEdges[j][1], EPSILON))) {
-                        this.boundary.splice(i--, 1);
+                if (edge !== undefined) { // TODO: Hacky
+                    for (let j = 0; j < dupEdges.length; ++j) {
+                        if (edge.equals(dupEdges[j])) {
+                            this.boundary.splice(i--, 1);
+                        }
                     }
                 }
             }
-            this.boundary.push(...newEdges);
         }
-        console.log();
     }
 
-    private chordCache: [[Vector, Vector], [Vector, Vector]];
+    private chordCache: [Edge, Edge] = [null, null];
+    private boundaryRayCache: Object = {};
 
     clearChordCache() {
-        this.chordCache = [[null, null], [null, null]];
+        this.chordCache = [null, null];
+        this.boundaryRayCache = {};
     }
     
-    chord(x: Vector, y: Vector): [Vector, Vector] {
-        if (this.chordCache[0][0] !== null) {
-            if (this.chordCache[0][0].equals(x, EPSILON) && this.chordCache[0][1].equals(y, EPSILON))
-                return this.chordCache[1];
-        }
-
+    chord(x: Vector, y: Vector): Edge {
         const ray: Vector = x.subtract(y);
         let tMin = Number.POSITIVE_INFINITY;
         let tMax = Number.NEGATIVE_INFINITY;
         let a: Vector = x;
         let b: Vector = y;
+        let foundEdges = 0;
 
-        for (let i = 0; i < this.boundary.length; ++i) {
-            let q = this.boundary[i][0];
-            let [t1, t2, ip] = this.rayCast(x, ray, q, this.boundary[i][1].subtract(q));
+        if (this.chordCache[0] !== null) {
+            for (let i = 0; i < this.chordCache.length && foundEdges < 2; ++i) {
+                let q = this.chordCache[i].v1;
+                let [t1, t2, ip] = this.rayCast(x, ray, q, this.chordCache[i].v2.subtract(q));
+
+                if (t2 >= 0 && t2 <= 1) {
+                    if (t1 < tMin) {
+                        tMin = t1;
+                        a = ip;
+                    }
+                    if (t1 > tMax) {
+                        tMax = t1;
+                        b = ip;
+                    }
+                    ++foundEdges;
+                }
+            }
+        }
+
+        for (let i = 0; i < this.boundary.length && foundEdges < 2; ++i) {
+            let q = this.boundary[i].v1;
+            let w = this.boundary[i].v2.subtract(q)
+            //let key = this.boundary[i].hash();
+            //let w = this.boundaryRayCache[key];
+            //if (w === undefined) {
+            //    w = this.boundary[i].v2.subtract(q)
+            //    this.boundaryRayCache[key] = w;
+            //}
+
+            let [t1, t2, ip] = this.rayCast(x, ray, q, w);
+
+            if (t2 >= -1 && t2 <= 2) {
+                this.chordCache.push(this.boundary[i]);
+            }
 
             if (t2 >= 0 && t2 <= 1) {
                 if (t1 < tMin) {
@@ -411,13 +442,11 @@ class PCModel implements ConvexDomain {
                     tMax = t1;
                     b = ip;
                 }
+                ++foundEdges;
             }
         }
-        
-        this.chordCache[0] = [x,y];
-        this.chordCache[1] = [a,b];
 
-        return this.chordCache[1];
+        return new Edge(a,b);
 
         // TODO: Potential optimization?
         //const rayPos: Vector = y.subtract(x);
@@ -465,7 +494,9 @@ class PCModel implements ConvexDomain {
     }
 
     crossRatio(x: Vector, y: Vector): number {
-        let [a,b] = this.chord(x, y);
+        let chord = this.chord(x, y);
+        let a = chord.v1;
+        let b = chord.v2;
 
         // Make sure point ordering is correct
         if (a.subtract(x).norm() > a.subtract(y).norm()) {
@@ -507,15 +538,15 @@ class PCModel implements ConvexDomain {
         //p5.stroke('black');
         p5.stroke(50, 168, 82);
         for (let i = 0; i < this.interior.length; ++i) {
-            let pCanvas = this.modelToCanvas(this.interior[i][0]);
-            let qCanvas = this.modelToCanvas(this.interior[i][1]);
+            let pCanvas = this.modelToCanvas(this.interior[i].v1);
+            let qCanvas = this.modelToCanvas(this.interior[i].v2);
             p5.line(pCanvas.x, pCanvas.y, qCanvas.x, qCanvas.y);
         }
         p5.strokeWeight(1);
         p5.stroke('black');
         for (let i = 0; i < this.boundary.length; ++i) {
-            let pCanvas = this.modelToCanvas(this.boundary[i][0]);
-            let qCanvas = this.modelToCanvas(this.boundary[i][1]);
+            let pCanvas = this.modelToCanvas(this.boundary[i].v1);
+            let qCanvas = this.modelToCanvas(this.boundary[i].v2);
             p5.line(pCanvas.x, pCanvas.y, qCanvas.x, qCanvas.y);
         }
 
@@ -544,8 +575,8 @@ class PCModel implements ConvexDomain {
     }
 
     drawBisectorContinue(p5: P5, p: Vector, q: Vector, nextPoint: Point, coorient: Vector, bisectingPoints: Point[], epsilon: number) {
-        let midpoint = nextPoint;
-        for (let i = 0; i < 20; ++i) {
+        //let midpoint = nextPoint;
+        for (let i = 0; i < 0.5 * this.drawScale; ++i) {
             let nextBox: [Point, Point] = [new Point(nextPoint.x - 10, nextPoint.y - 10), new Point(nextPoint.x + 10, nextPoint.y + 10)];
             let nextNextPoint = nextPoint;
             let nextNextNorm = 0;
@@ -572,12 +603,13 @@ class PCModel implements ConvexDomain {
                 }
             }
 
+            //nextPoint = nextNextPoint.add(offset);
             nextPoint = nextNextPoint;
             epsilon -= epsilon / bisectingPoints.length;
         }
     }
 
-    drawBisector(p5: P5, p: Vector, q: Vector, epsilon: number = 0.002): void {
+    drawBisector(p5: P5, p: Vector, q: Vector, epsilon: number = 0.003): void {
         let pCanvas = this.modelToCanvas(p);
         let qCanvas = this.modelToCanvas(q);
 
@@ -628,7 +660,7 @@ class KleinModel extends DiskModel {
         super(drawOrigin, drawRadius);
     }
 
-    chord(p: Vector, q: Vector): [Vector, Vector] {
+    chord(p: Vector, q: Vector): Edge {
         let x1 = p.at(0);
         let y1 = p.at(1);
         let x2 = q.at(0);

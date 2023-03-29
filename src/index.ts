@@ -9,13 +9,13 @@ const sketch = (p5: P5) => {
     // Model
     let model: PCModel;
 
-    let pModel: Vector = Vector.fromList(0, 0, 1);
-    let qModel: Vector = Vector.fromList(0.5, 0.1, 1);
+    let pModel: Vector = Vector.fromList(0, 0.5, 1);
+    let qModel: Vector = Vector.fromList(0.5, -0.7, 1);
     let pCanvas: Point;
     let qCanvas: Point;
     
-    let defaultBulge: number = 1;
-    let prevBulge: number;
+    let defaultBulge: number = 0;
+    let prevBulge: number = -1;
 
     // Graphical elements
     let draggables: Draggable[] = [];
@@ -30,24 +30,23 @@ const sketch = (p5: P5) => {
     let drawChord: boolean = true;
 
 	p5.setup = () => {
-		const canvas = p5.createCanvas(p5.windowWidth, p5.windowHeight);
+		const canvas = p5.createCanvas(1000, 800);
 		canvas.parent("app");
 
 		p5.background("white");
 
         // Model
-        prevBulge = -1;
-        model = new PCModel(new Point(400, 400), 150, prevBulge);
+        model = new PCModel(new Point(400, 400), 100);
         pCanvas = model.modelToCanvas(pModel);
         qCanvas = model.modelToCanvas(qModel);
 
         // Layers
-        modelLayer = p5.createGraphics(p5.windowWidth, p5.windowHeight);
-        chordLayer = p5.createGraphics(p5.windowWidth, p5.windowHeight);
-        bisectorLayer = p5.createGraphics(p5.windowWidth, p5.windowHeight);
+        modelLayer = p5.createGraphics(1000, 800);
+        chordLayer = p5.createGraphics(1000, 800);
+        bisectorLayer = p5.createGraphics(1000, 800);
 
         // Graphical elements
-        bulgeSlider = p5.createSlider(-4, 4, 0.5, 0.01);
+        bulgeSlider = p5.createSlider(-4, 4, 0, 0.01);
         bulgeSlider.position(10, 10);
         bulgeSlider.style('width', '80px');
 
@@ -116,7 +115,9 @@ const sketch = (p5: P5) => {
 
         let bulge = Math.sqrt(2)/2 * Math.exp(bulgeSlider.value());
         if (bulge != prevBulge) {
+            prevBulge = bulge;
             modelLayer.clear();
+            console.log();
             model.setBulge(bulge);
             model.draw(modelLayer);
 
@@ -140,7 +141,8 @@ const sketch = (p5: P5) => {
             pModel = model.canvasToModel(draggables[0]);
             qModel = model.canvasToModel(draggables[1]);
 
-            let [a,b] = model.chord(pModel, qModel);
+            let chord = model.chord(pModel, qModel);
+            let [a,b] = [chord.v1, chord.v2];
             chordLayer.strokeWeight(1);
             chordLayer.stroke('blue');
             chordLayer.line(model.modelToCanvas(a).x, model.modelToCanvas(a).y, model.modelToCanvas(b).x, model.modelToCanvas(b).y);

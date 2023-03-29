@@ -212,7 +212,7 @@ class Vector extends Matrix {
     }
 
     at(i: number) {
-        return super.at(i, 0);
+        return this.mat[i][0];
     }
 
     scale(c: number): Vector {
@@ -228,7 +228,11 @@ class Vector extends Matrix {
     }
 
     subtract(other: Vector): Vector {
-        return Vector.fromMatrix(super.subtract(other));
+        let res = Array(this.rows);
+        for (let i = 0; i < this.rows; ++i) {
+            res[i] = [this.mat[i][0] - other.mat[i][0]];
+        }
+        return new Vector(res);
     }
 
     cross(other: Vector): Vector {
@@ -272,6 +276,17 @@ class Vector extends Matrix {
 
     equals(other: Vector, epsilon: number = 0): boolean {
         return super.equals(other, epsilon);
+    }
+
+    toString(): string {
+        let res = "(";
+        for (let i = 0; i < this.rows; ++i) {
+            res += this.at(i);
+            if (i != this.rows - 1)
+                res += ', ';
+        }
+        res += ")";
+        return res;
     }
 }
 
