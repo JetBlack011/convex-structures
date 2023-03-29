@@ -77,7 +77,7 @@ abstract class DiskModel implements Model {
      */
     modelToCanvas(p: Vector): Point {
         p = this.act(p);
-        return {x: p.at(0) * this.drawRadius / 2 + this.drawOrigin.x, y: -p.at(1) * this.drawRadius / 2 + this.drawOrigin.y};
+        return new Point(p.at(0) * this.drawRadius / 2 + this.drawOrigin.x, -p.at(1) * this.drawRadius / 2 + this.drawOrigin.y);
     }
 
     /**
@@ -232,8 +232,6 @@ interface ConvexDomain extends Model {
 }
 
 
-type RadialKdTree = [number[], Vector[]];
-
 class PCModel implements ConvexDomain {
     private static STEPS = 900;
     private static C: Matrix = new Matrix([[2, -1, -1], [-2, 2, -1], [-1, -1, 2]]);
@@ -331,7 +329,7 @@ class PCModel implements ConvexDomain {
         this.boundary = [[p1, p2], [p2, p3], [p3, p1]];
         this.interior = [[p1, p2], [p2, p3], [p3, p1]];
 
-        for (let i = 0; i < g.length; ++i) {
+        for (let i = 0; i < 70; ++i) {
             if (g[i].equals(Matrix.identity(3), EPSILON))
                 continue;
             const PMat = g[i].multiply(Matrix.fromBasis(p1, p2, p3)).transpose();
@@ -340,47 +338,46 @@ class PCModel implements ConvexDomain {
             const P2 = Vector.fromList(...PMat.mat[1]).homogenize();
             const P3 = Vector.fromList(...PMat.mat[2]).homogenize();
 
-            const newLines: Edge[] = [[P1, P2], [P2, P3], [P3, P1]];
-            const newVertices: Vector[] = [P1, P2, P3];
+            const newTriangle: Edge[] = [[P1, P2], [P2, P3], [P3, P1]];
+            this.interior.push(...newTriangle);
 
-            let numNewVertices: number = 0;
-            let newVertex: Vector;
-            let edgeDuplicate: Vector[] = [];
+            let newEdges: Edge[] = [];
+            let dupEdges: Edge[] = [];
 
-            for (let i = 0; i < newVertices.length; ++i) {
-                let vertex = newVertices[i];
-                let isDuplicate = false;
+            for (let i = 0; i < newTriangle.length; ++i) {
+                let edge = newTriangle[i];
+                let edgeFound = false;
                 for (let j = 0; j < this.boundary.length; ++j) {
-                    let edge = this.boundary[j];
-                    let eq1 = edge[0].equals(vertex, EPSILON);
-                    let eq2 = edge[1].equals(vertex, EPSILON);
-
-                    if (eq1 || eq2) {
-                        ++numNewVertices;
-                        edgeDuplicate.push(vertex);
-                        isDuplicate = true;
-                        break;
+                    if ((edge[0].equals(this.boundary[j][0], EPSILON) || edge[0].equals(this.boundary[j][1], EPSILON))
+                        && (edge[1].equals(this.boundary[j][0], EPSILON) || edge[1].equals(this.boundary[j][1], EPSILON))) {
+                        edgeFound = true;
+                        dupEdges.push(edge);
                     }
                 }
-                if (!isDuplicate)
-                    newVertex = vertex;
+                if (!edgeFound)
+                    newEdges.push(edge);
             }
-            
-            this.interior.push(...newLines);
 
-            if (numNewVertices != 2)
+            //console.log(newEdges.length, dupEdges.length);
+
+            console.log(newEdges.length, dupEdges.length);
+            if (i == 69)
+                console.log(`69 lol: ${newEdges.length}, ${dupEdges.length}`);
+            if (newEdges.length == 3)
                 continue;
 
-            this.boundary.push([edgeDuplicate[0], newVertex], [edgeDuplicate[1], newVertex]);
             for (let i = 0; i < this.boundary.length; ++i) {
                 let edge = this.boundary[i];
-                if ((edge[0].equals(edgeDuplicate[0], EPSILON) || edge[0].equals(edgeDuplicate[1], EPSILON))
-                    && (edge[1].equals(edgeDuplicate[0], EPSILON) || edge[1].equals(edgeDuplicate[1], EPSILON))) {
-                    this.boundary.splice(i--, 1);
-                    break;
+                for (let j = 0; j < dupEdges.length; ++j) {
+                    if ((edge[0].equals(dupEdges[j][0], EPSILON) || edge[0].equals(dupEdges[j][1], EPSILON))
+                        && (edge[1].equals(dupEdges[j][0], EPSILON) || edge[1].equals(dupEdges[j][1], EPSILON))) {
+                        this.boundary.splice(i--, 1);
+                    }
                 }
             }
+            this.boundary.push(...newEdges);
         }
+        console.log();
     }
 
     private chordCache: [[Vector, Vector], [Vector, Vector]];
@@ -507,13 +504,14 @@ class PCModel implements ConvexDomain {
     draw(p5: P5): void {
         p5.strokeWeight(0.5);
         //p5.strokeWeight(0.5);
-        p5.stroke('black');
-        //p5.stroke(50, 168, 82);
+        //p5.stroke('black');
+        p5.stroke(50, 168, 82);
         for (let i = 0; i < this.interior.length; ++i) {
             let pCanvas = this.modelToCanvas(this.interior[i][0]);
             let qCanvas = this.modelToCanvas(this.interior[i][1]);
             p5.line(pCanvas.x, pCanvas.y, qCanvas.x, qCanvas.y);
         }
+        p5.strokeWeight(1);
         p5.stroke('black');
         for (let i = 0; i < this.boundary.length; ++i) {
             let pCanvas = this.modelToCanvas(this.boundary[i][0]);
@@ -546,13 +544,17 @@ class PCModel implements ConvexDomain {
     }
 
     drawBisectorContinue(p5: P5, p: Vector, q: Vector, nextPoint: Point, coorient: Vector, bisectingPoints: Point[], epsilon: number) {
-        for (let i = 0; i < 40; ++i) {
-            let nextBox: [Point, Point] = [new Point(nextPoint.x - 5, nextPoint.y - 5), new Point(nextPoint.x + 5, nextPoint.y + 5)];
+        let midpoint = nextPoint;
+        for (let i = 0; i < 20; ++i) {
+            let nextBox: [Point, Point] = [new Point(nextPoint.x - 10, nextPoint.y - 10), new Point(nextPoint.x + 10, nextPoint.y + 10)];
             let nextNextPoint = nextPoint;
             let nextNextNorm = 0;
+            //let scale = 1 / Math.log(nextPoint.subtract(midpoint).norm());
+            //if (scale > 1)
+            //    scale = 1;
 
-            for (let i = nextBox[0].x; i < nextBox[1].x; i += 0.4) {
-                for (let j = nextBox[0].y; j < nextBox[1].y; j += 0.4) {
+            for (let i = nextBox[0].x; i < nextBox[1].x; i += 0.5) {
+                for (let j = nextBox[0].y; j < nextBox[1].y; j += 0.5) {
                     let rCanvas = new Point(i, j);
                     let rModel = this.canvasToModel(rCanvas);
 
@@ -571,50 +573,44 @@ class PCModel implements ConvexDomain {
             }
 
             nextPoint = nextNextPoint;
+            epsilon -= epsilon / bisectingPoints.length;
         }
     }
 
-    drawBisector(p5: P5, p: Vector, q: Vector, epsilon: number = 0.001): void {
-        let midPoint = this.modelToCanvas(p.add(q).scale(0.5));
-        let midBox: [Point, Point] = [new Point(midPoint.x - 5, midPoint.y - 5), new Point(midPoint.x + 5, midPoint.y + 5)];
+    drawBisector(p5: P5, p: Vector, q: Vector, epsilon: number = 0.002): void {
+        let pCanvas = this.modelToCanvas(p);
+        let qCanvas = this.modelToCanvas(q);
 
         let bisectingPoints: Point[] = [];
 
         let pq = q.subtract(p);
         let coorient = Vector.fromList(-pq.at(1), pq.at(0), 1).normalize();
-        let nextPoint: Point = midPoint;
-        let nextNorm: number = 0;
-        let prevPoint: Point = midPoint;
-        let prevNorm: number = 0;
+        let midpoint: Point = null;
 
         p5.strokeWeight(1);
         p5.stroke('pink');
 
-        for (let i = midBox[0].x; i < midBox[1].x; i += 0.4) {
-            for (let j = midBox[0].y; j < midBox[1].y; j += 0.4) {
+        let xMax = Math.max(pCanvas.x, qCanvas.x) + 1;
+        let xMin = Math.min(pCanvas.x, qCanvas.x) - 1;
+        let yMax = Math.max(pCanvas.y, qCanvas.y) + 1;
+        let yMin = Math.min(pCanvas.y, qCanvas.y) - 1;
+
+        for (let i = xMin; i < xMax && midpoint === null; i += 1) {
+            for (let j = yMin; j < yMax && midpoint === null; j += 1) {
                 let rCanvas = new Point(i, j);
                 let rModel = this.canvasToModel(rCanvas);
 
-                p5.point(rCanvas.x, rCanvas.y);
+                //p5.point(rCanvas.x, rCanvas.y);
 
                 if (Math.abs(this.d(p, rModel) - this.d(rModel, q)) < epsilon) {
                     bisectingPoints.push(rCanvas);
-                    let mr = rCanvas.subtract(midPoint);
-                    let signedNorm = Math.sign(coorient.dot(mr)) * mr.normSquared();
-                    if (signedNorm > nextNorm) {
-                        nextNorm = signedNorm;
-                        nextPoint = rCanvas;
-                    }
-                    if (signedNorm < prevNorm) {
-                        prevNorm = signedNorm;
-                        prevPoint = rCanvas;
-                    }
+                    midpoint = rCanvas;
                 }
             }
         }
 
-        this.drawBisectorContinue(p5, p, q, nextPoint, coorient, bisectingPoints, epsilon);
-        this.drawBisectorContinue(p5, p, q, prevPoint, coorient.negate(), bisectingPoints, epsilon);
+        this.drawBisectorContinue(p5, p, q, midpoint, coorient, bisectingPoints, epsilon);
+        this.drawBisectorContinue(p5, p, q, midpoint, coorient.negate(), bisectingPoints, epsilon);
 
         p5.stroke('purple');
         for (let i = 0; i < bisectingPoints.length; ++i) {

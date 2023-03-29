@@ -246,6 +246,10 @@ class Vector extends Matrix {
         return this.transpose().multiply(other).at(0, 0);
     }
 
+    project(other: Vector): Vector {
+        return this.normalize().scale(this.dot(other) / this.norm());
+    }
+
     normSquared(): number {
         return this.dot(this);
     }

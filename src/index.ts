@@ -139,12 +139,14 @@ const sketch = (p5: P5) => {
 
             pModel = model.canvasToModel(draggables[0]);
             qModel = model.canvasToModel(draggables[1]);
+
             let [a,b] = model.chord(pModel, qModel);
-            model.drawPoint(chordLayer, a);
-            model.drawPoint(chordLayer, b);
             chordLayer.strokeWeight(1);
             chordLayer.stroke('blue');
             chordLayer.line(model.modelToCanvas(a).x, model.modelToCanvas(a).y, model.modelToCanvas(b).x, model.modelToCanvas(b).y);
+
+            model.drawPoint(chordLayer, a);
+            model.drawPoint(chordLayer, b);
         }
 
         p5.image(bisectorLayer, 0, 0);
