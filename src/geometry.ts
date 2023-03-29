@@ -12,6 +12,10 @@ class Point {
         this.x = x;
         this.y = y;
     }
+
+    subtract(other: Point): Vector {
+        return Vector.fromList(this.x - other.x, this.y - other.y, 1);
+    }
 }
 
 class Simplex {

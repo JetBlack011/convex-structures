@@ -1,6 +1,6 @@
 import P5 from "p5";
 
-import {randInt, Stack} from './utils';
+import {randInt, Stack, binarySearch} from './utils';
 import {Matrix, Vector, ComplexNumber, Transformation, LinearTransformation, MobiusTransformation, EPSILON} from "./linalg";
 import {Edge, Simplex, Point} from './geometry';
 
@@ -231,6 +231,9 @@ interface ConvexDomain extends Model {
     crossRatio(z: Vector, w: Vector): number;
 }
 
+
+type RadialKdTree = [number[], Vector[]];
+
 class PCModel implements ConvexDomain {
     private static STEPS = 900;
     private static C: Matrix = new Matrix([[2, -1, -1], [-2, 2, -1], [-1, -1, 2]]);
@@ -239,7 +242,7 @@ class PCModel implements ConvexDomain {
     bulge: number;
     // TODO: Make these sets
     interior: Edge[] = [];
-    boundary: Edge[];
+    boundary: Edge[] = [];
 
     drawOrigin: Point;
     drawScale: number;
@@ -254,10 +257,38 @@ class PCModel implements ConvexDomain {
     constructor(drawOrigin: Point, drawScale: number, bulge: number = 1) {
         this.drawOrigin = drawOrigin;
         this.drawScale = drawScale;
+        this.chordCache = [[null, null], [null, null]];
         //this.generators = generators;
 
         this.setBulge(bulge);
     }
+
+    private rayCast(p: Vector, ray: Vector, q: Vector, w: Vector): [number, number, Vector] {
+        let intersectionPoint = Vector.fromList(
+            -(-ray.at(0) * q.at(1) * w.at(0) + ray.at(0) * q.at(0) * w.at(1) - ray.at(1) * w.at(0) * p.at(0) + ray.at(0) * w.at(0) * p.at(1))/(ray.at(1) * w.at(0) - ray.at(0) * w.at(1)),
+            -((ray.at(1) * q.at(1) * w.at(0) - ray.at(1) * q.at(0) * w.at(1) + ray.at(1) * w.at(1) * p.at(0) - ray.at(0) * w.at(1) * p.at(1))/(-ray.at(1) * w.at(0) + ray.at(0) * w.at(1))),
+            1
+        );
+        let t1 = -((q.at(1) * w.at(0) - q.at(0) * w.at(1) + w.at(1) * p.at(0) - w.at(0) * p.at(1))/(-ray.at(1) * w.at(0) + ray.at(0) * w.at(1)))
+        let t2 = -((ray.at(1) * q.at(0) - ray.at(0) * q.at(1) - ray.at(1) * p.at(0) + ray.at(0) * p.at(1))/(ray.at(1) * w.at(0) - ray.at(0) * w.at(1)))
+
+        return [t1, t2, intersectionPoint];
+    }
+
+    //rayCastCount(p: Vector, ray: Vector, p5?: P5): number {
+    //    let res: number = 0;
+    //    p = p.add(ray.scale(EPSILON));
+    //    for (let i = 0; i < this.boundary.length; ++i) {
+    //        let [t1, t2, ip] = this.rayCast(p, ray, 
+    //            this.boundary[i][0],
+    //            this.boundary[i][1].subtract(this.boundary[i][0])
+    //        );
+
+    //        if (t1 > 0 && t2 >= 0 && t2 <= 0)
+    //            ++res;
+    //    }
+    //    return res;
+    //}
 
     setBulge(bulge: number): void {
         this.bulge = bulge;
@@ -298,8 +329,9 @@ class PCModel implements ConvexDomain {
         }
 
         this.boundary = [[p1, p2], [p2, p3], [p3, p1]];
+        this.interior = [[p1, p2], [p2, p3], [p3, p1]];
 
-        for (let i = 1; i < g.length - 2680; ++i) {
+        for (let i = 0; i < g.length; ++i) {
             if (g[i].equals(Matrix.identity(3), EPSILON))
                 continue;
             const PMat = g[i].multiply(Matrix.fromBasis(p1, p2, p3)).transpose();
@@ -309,96 +341,134 @@ class PCModel implements ConvexDomain {
             const P3 = Vector.fromList(...PMat.mat[2]).homogenize();
 
             const newLines: Edge[] = [[P1, P2], [P2, P3], [P3, P1]];
-            const newVertices: Vector[] = [newLines[0], newLines[1]].flat();
+            const newVertices: Vector[] = [P1, P2, P3];
 
-            this.interior.push(...newLines);
-            this.boundary.push(...newLines);
+            let numNewVertices: number = 0;
+            let newVertex: Vector;
+            let edgeDuplicate: Vector[] = [];
 
             for (let i = 0; i < newVertices.length; ++i) {
                 let vertex = newVertices[i];
+                let isDuplicate = false;
                 for (let j = 0; j < this.boundary.length; ++j) {
                     let edge = this.boundary[j];
-                    if (edge[0].equals(vertex, EPSILON) || edge[1].equals(vertex, EPSILON)) {
-                        // TODO
-                        if (edge is in interior)
-                            this.boundary.remove(edge);
+                    let eq1 = edge[0].equals(vertex, EPSILON);
+                    let eq2 = edge[1].equals(vertex, EPSILON);
+
+                    if (eq1 || eq2) {
+                        ++numNewVertices;
+                        edgeDuplicate.push(vertex);
+                        isDuplicate = true;
+                        break;
                     }
                 }
+                if (!isDuplicate)
+                    newVertex = vertex;
             }
-            //// Update our boundary
-            //for (let j = 0; j < newLines.length; ++j) {
-            //    const L: Edge = newLines[j];
-            //    let inBoundary: Boolean = false;
+            
+            this.interior.push(...newLines);
 
-            //    // Prune the repeat edges (there will always be at least one, since this is a reflection group)
-            //    for (let k = 0; k < this.boundary.length; ++k) {
-            //        if (L[0].equals(this.boundary[k][0], EPSILON) && L[1].equals(this.boundary[k][1], EPSILON)
-            //            || L[0].equals(this.boundary[k][1], EPSILON) && L[1].equals(this.boundary[k][0], EPSILON)) {
-            //            this.interior.push(this.boundary[k]);
-            //            this.boundary.splice(k--, 1);
-            //            inBoundary = true;
-            //        }
-            //    }
-            //    // If this edge is not already in the boundary, add it
-            //    if (!inBoundary) 
-            //        this.boundary.push(L);
-            //}
+            if (numNewVertices != 2)
+                continue;
+
+            this.boundary.push([edgeDuplicate[0], newVertex], [edgeDuplicate[1], newVertex]);
+            for (let i = 0; i < this.boundary.length; ++i) {
+                let edge = this.boundary[i];
+                if ((edge[0].equals(edgeDuplicate[0], EPSILON) || edge[0].equals(edgeDuplicate[1], EPSILON))
+                    && (edge[1].equals(edgeDuplicate[0], EPSILON) || edge[1].equals(edgeDuplicate[1], EPSILON))) {
+                    this.boundary.splice(i--, 1);
+                    break;
+                }
+            }
         }
+    }
+
+    private chordCache: [[Vector, Vector], [Vector, Vector]];
+
+    clearChordCache() {
+        this.chordCache = [[null, null], [null, null]];
     }
     
     chord(x: Vector, y: Vector): [Vector, Vector] {
+        if (this.chordCache[0][0] !== null) {
+            if (this.chordCache[0][0].equals(x, EPSILON) && this.chordCache[0][1].equals(y, EPSILON))
+                return this.chordCache[1];
+        }
+
         const ray: Vector = x.subtract(y);
-        let tMin = Infinity;
-        let tMax = -Infinity;
+        let tMin = Number.POSITIVE_INFINITY;
+        let tMax = Number.NEGATIVE_INFINITY;
         let a: Vector = x;
         let b: Vector = y;
 
-        let ts: Vector;
-        let tw: Vector;
-        let tt1: number;
-        let tt2: number;
-
         for (let i = 0; i < this.boundary.length; ++i) {
-            let s = this.boundary[i][0];
-            let w = this.boundary[i][1].subtract(s);
-            let intersectionPoint = Vector.fromList(
-                -(-ray.at(0) * s.at(1) * w.at(0) + ray.at(0) * s.at(0) * w.at(1) - ray.at(1) * w.at(0) * x.at(0) + ray.at(0) * w.at(0) * x.at(1))/(ray.at(1) * w.at(0) - ray.at(0) * w.at(1)),
-                -((ray.at(1) * s.at(1) * w.at(0) - ray.at(1) * s.at(0) * w.at(1) + ray.at(1) * w.at(1) * x.at(0) - ray.at(0) * w.at(1) * x.at(1))/(-ray.at(1) * w.at(0) + ray.at(0) * w.at(1)))
-            );
-            let t1 = -((s.at(1) * w.at(0) - s.at(0) * w.at(1) + w.at(1) * x.at(0) - w.at(0) * x.at(1))/(-ray.at(1) * w.at(0) + ray.at(0) * w.at(1)))
-            let t2 = -((ray.at(1) * s.at(0) - ray.at(0) * s.at(1) - ray.at(1) * x.at(0) + ray.at(0) * x.at(1))/(ray.at(1) * w.at(0) - ray.at(0) * w.at(1)))
-            
-            // We actually intersect this line segment
+            let q = this.boundary[i][0];
+            let [t1, t2, ip] = this.rayCast(x, ray, q, this.boundary[i][1].subtract(q));
+
             if (t2 >= 0 && t2 <= 1) {
                 if (t1 < tMin) {
                     tMin = t1;
-                    a = intersectionPoint;
+                    a = ip;
                 }
                 if (t1 > tMax) {
                     tMax = t1;
-                    b = intersectionPoint;
-
-                    ts = s;
-                    tw = w;
-                    tt1 = t1;
-                    tt2 = t2;
+                    b = ip;
                 }
             }
         }
-        //console.log(`s = ${[ts.at(0).toFixed(2), ts.at(1).toFixed(2)]}, w = ${[tw.at(0).toFixed(2), tw.at(1).toFixed(2)]}, t2 = ${tt2}\n`);
+        
+        this.chordCache[0] = [x,y];
+        this.chordCache[1] = [a,b];
 
-        //p5.strokeWeight(5);
-        //p5.stroke('green');
-        //const tsCanvas = this.modelToCanvas(ts);
-        //const tPCanvas = this.modelToCanvas(ts.add(tw));
-        //p5.point(tsCanvas.x, tsCanvas.y);
-        //p5.point(tPCanvas.x, tPCanvas.y);
+        return this.chordCache[1];
 
-        return [a, b];
+        // TODO: Potential optimization?
+        //const rayPos: Vector = y.subtract(x);
+        //const rayNeg: Vector = x.subtract(y);
+
+        //let maxDotPos: number = Number.NEGATIVE_INFINITY;
+        //let secDotPos: number = Number.NEGATIVE_INFINITY;
+        //let bVertex1: Vector;
+        //let bVertex2: Vector;
+
+        //let maxDotNeg: number = Number.NEGATIVE_INFINITY;
+        //let secDotNeg: number = Number.NEGATIVE_INFINITY;
+        //let aVertex1: Vector;
+        //let aVertex2: Vector;
+
+        //for (let i = 0; i < this.boundary.length; ++i) {
+        //    for (let j = 0; j < this.boundary[i].length; ++j) {
+        //        let dotPos = rayPos.normalize().dot(this.boundary[i][j].subtract(x).normalize());
+        //        let dotNeg = rayNeg.normalize().dot(this.boundary[i][j].subtract(y).normalize());
+
+        //        if (dotPos > maxDotPos) {
+        //            secDotPos = maxDotPos;
+        //            maxDotPos = dotPos;
+        //            bVertex2 = bVertex1;
+        //            bVertex1 = this.boundary[i][j];
+        //        } else if (dotPos < maxDotPos && dotPos > secDotPos) {
+        //            secDotPos = dotPos;
+        //            bVertex2 = this.boundary[i][j];
+        //        }
+
+        //        if (dotNeg > maxDotNeg) {
+        //            secDotNeg = maxDotNeg;
+        //            maxDotNeg = dotNeg;
+        //            aVertex2 = aVertex1;
+        //            aVertex1 = this.boundary[i][j];
+        //        } else if (dotNeg < maxDotNeg && dotNeg > secDotNeg) {
+        //            secDotNeg = dotNeg;
+        //            aVertex2 = this.boundary[i][j];
+        //        }
+        //    }
+        //}
+
+        //let b = this.rayCast(x, rayPos, bVertex1, bVertex2.subtract(bVertex1));
+        //let a = this.rayCast(x, rayNeg, aVertex1, aVertex2.subtract(aVertex1));
     }
 
     crossRatio(x: Vector, y: Vector): number {
-        let [a,b] = this.chord(x,y);
+        let [a,b] = this.chord(x, y);
 
         // Make sure point ordering is correct
         if (a.subtract(x).norm() > a.subtract(y).norm()) {
@@ -415,7 +485,7 @@ class PCModel implements ConvexDomain {
     }
 
     modelToCanvas(p: Vector): Point {
-        return {x: this.drawScale * p.at(0) + this.drawOrigin.x, y: -this.drawScale * p.at(1) + this.drawOrigin.y};
+        return new Point(this.drawScale * p.at(0) + this.drawOrigin.x, -this.drawScale * p.at(1) + this.drawOrigin.y);
     }
 
     canvasToModel(p: Point): Vector {
@@ -435,20 +505,22 @@ class PCModel implements ConvexDomain {
     }
 
     draw(p5: P5): void {
+        p5.strokeWeight(0.5);
+        //p5.strokeWeight(0.5);
         p5.stroke('black');
-        p5.strokeWeight(1);
+        //p5.stroke(50, 168, 82);
+        for (let i = 0; i < this.interior.length; ++i) {
+            let pCanvas = this.modelToCanvas(this.interior[i][0]);
+            let qCanvas = this.modelToCanvas(this.interior[i][1]);
+            p5.line(pCanvas.x, pCanvas.y, qCanvas.x, qCanvas.y);
+        }
+        p5.stroke('black');
         for (let i = 0; i < this.boundary.length; ++i) {
             let pCanvas = this.modelToCanvas(this.boundary[i][0]);
             let qCanvas = this.modelToCanvas(this.boundary[i][1]);
             p5.line(pCanvas.x, pCanvas.y, qCanvas.x, qCanvas.y);
         }
 
-        //p5.stroke(50, 168, 82);
-        //for (let i = 0; i < this.interior.length; ++i) {
-        //    let pCanvas = this.modelToCanvas(this.interior[i][0]);
-        //    let qCanvas = this.modelToCanvas(this.interior[i][1]);
-        //    p5.line(pCanvas.x, pCanvas.y, qCanvas.x, qCanvas.y);
-        //}
         // p5.strokeWeight(5);
         // p5.stroke('red');
 
@@ -471,6 +543,83 @@ class PCModel implements ConvexDomain {
 
     drawGeodesic(p5: P5, z: Vector, w: Vector): void {
         
+    }
+
+    drawBisectorContinue(p5: P5, p: Vector, q: Vector, nextPoint: Point, coorient: Vector, bisectingPoints: Point[], epsilon: number) {
+        for (let i = 0; i < 40; ++i) {
+            let nextBox: [Point, Point] = [new Point(nextPoint.x - 5, nextPoint.y - 5), new Point(nextPoint.x + 5, nextPoint.y + 5)];
+            let nextNextPoint = nextPoint;
+            let nextNextNorm = 0;
+
+            for (let i = nextBox[0].x; i < nextBox[1].x; i += 0.4) {
+                for (let j = nextBox[0].y; j < nextBox[1].y; j += 0.4) {
+                    let rCanvas = new Point(i, j);
+                    let rModel = this.canvasToModel(rCanvas);
+
+                    p5.point(rCanvas.x, rCanvas.y);
+
+                    if (Math.abs(this.d(p, rModel) - this.d(rModel, q)) < epsilon) {
+                        bisectingPoints.push(rCanvas);
+                        let nr = rCanvas.subtract(nextPoint);
+                        let signedNorm = Math.sign(coorient.dot(nr)) * nr.normSquared();
+                        if (signedNorm > nextNextNorm) {
+                            nextNextNorm = signedNorm;
+                            nextNextPoint = rCanvas;
+                        }
+                    }
+                }
+            }
+
+            nextPoint = nextNextPoint;
+        }
+    }
+
+    drawBisector(p5: P5, p: Vector, q: Vector, epsilon: number = 0.001): void {
+        let midPoint = this.modelToCanvas(p.add(q).scale(0.5));
+        let midBox: [Point, Point] = [new Point(midPoint.x - 5, midPoint.y - 5), new Point(midPoint.x + 5, midPoint.y + 5)];
+
+        let bisectingPoints: Point[] = [];
+
+        let pq = q.subtract(p);
+        let coorient = Vector.fromList(-pq.at(1), pq.at(0), 1).normalize();
+        let nextPoint: Point = midPoint;
+        let nextNorm: number = 0;
+        let prevPoint: Point = midPoint;
+        let prevNorm: number = 0;
+
+        p5.strokeWeight(1);
+        p5.stroke('pink');
+
+        for (let i = midBox[0].x; i < midBox[1].x; i += 0.4) {
+            for (let j = midBox[0].y; j < midBox[1].y; j += 0.4) {
+                let rCanvas = new Point(i, j);
+                let rModel = this.canvasToModel(rCanvas);
+
+                p5.point(rCanvas.x, rCanvas.y);
+
+                if (Math.abs(this.d(p, rModel) - this.d(rModel, q)) < epsilon) {
+                    bisectingPoints.push(rCanvas);
+                    let mr = rCanvas.subtract(midPoint);
+                    let signedNorm = Math.sign(coorient.dot(mr)) * mr.normSquared();
+                    if (signedNorm > nextNorm) {
+                        nextNorm = signedNorm;
+                        nextPoint = rCanvas;
+                    }
+                    if (signedNorm < prevNorm) {
+                        prevNorm = signedNorm;
+                        prevPoint = rCanvas;
+                    }
+                }
+            }
+        }
+
+        this.drawBisectorContinue(p5, p, q, nextPoint, coorient, bisectingPoints, epsilon);
+        this.drawBisectorContinue(p5, p, q, prevPoint, coorient.negate(), bisectingPoints, epsilon);
+
+        p5.stroke('purple');
+        for (let i = 0; i < bisectingPoints.length; ++i) {
+            p5.point(bisectingPoints[i].x, bisectingPoints[i].y);
+        }
     }
 
     tesselate(p5: P5, points: Vector[]): void {

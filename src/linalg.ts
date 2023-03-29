@@ -219,6 +219,10 @@ class Vector extends Matrix {
         return Vector.fromMatrix(super.scale(c));
     }
 
+    negate(): Vector {
+        return Vector.fromMatrix(super.negate());
+    }
+
     add(other: Vector): Vector {
         return Vector.fromMatrix(super.add(other));
     }

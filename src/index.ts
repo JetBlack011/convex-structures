@@ -1,4 +1,4 @@
-import P5 from "p5";
+import P5, { Graphics } from "p5";
 import "p5/lib/addons/p5.dom";
 
 import {Vector, ComplexNumber, MobiusTransformation, LinearTransformation} from "./linalg";
@@ -6,30 +6,54 @@ import {Model, PoincareModel, KleinModel, PCModel} from "./model";
 import {Point, Draggable, DraggablePoint, randInt} from "./utils";
 
 const sketch = (p5: P5) => {
+    // Model
     let model: PCModel;
-    let draggables: Draggable[] = [];
 
     let pModel: Vector = Vector.fromList(0, 0, 1);
-    let qModel: Vector = Vector.fromList(0.5, 0, 1);
+    let qModel: Vector = Vector.fromList(0.5, 0.1, 1);
     let pCanvas: Point;
     let qCanvas: Point;
-
-    let bulgeSlider;
+    
+    let defaultBulge: number = 1;
     let prevBulge: number;
 
+    // Graphical elements
+    let draggables: Draggable[] = [];
+    let bulgeSlider;
+    let bisectorButton;
+
+    // Layers
+    let modelLayer: Graphics;
+    let chordLayer: Graphics;
+    let bisectorLayer: Graphics;
+
+    let drawChord: boolean = true;
+
 	p5.setup = () => {
-		const canvas = p5.createCanvas(1000, 800);
+		const canvas = p5.createCanvas(p5.windowWidth, p5.windowHeight);
 		canvas.parent("app");
 
 		p5.background("white");
 
-        bulgeSlider = p5.createSlider(-4, 4, .01, 0);
+        // Model
+        prevBulge = -1;
+        model = new PCModel(new Point(400, 400), 150, prevBulge);
+        pCanvas = model.modelToCanvas(pModel);
+        qCanvas = model.modelToCanvas(qModel);
+
+        // Layers
+        modelLayer = p5.createGraphics(p5.windowWidth, p5.windowHeight);
+        chordLayer = p5.createGraphics(p5.windowWidth, p5.windowHeight);
+        bisectorLayer = p5.createGraphics(p5.windowWidth, p5.windowHeight);
+
+        // Graphical elements
+        bulgeSlider = p5.createSlider(-4, 4, 0.5, 0.01);
         bulgeSlider.position(10, 10);
         bulgeSlider.style('width', '80px');
 
-        model = new PCModel({x: 210, y: 210}, 100, Math.sqrt(2)/2);
-        pCanvas = model.modelToCanvas(pModel);
-        qCanvas = model.modelToCanvas(qModel);
+        bisectorButton = p5.createButton('Bisector');
+        bisectorButton.position(10, 40);
+        bisectorButton.mousePressed(drawBisector);
 
         draggables.push(new DraggablePoint(pCanvas.x, pCanvas.y));
         draggables.push(new DraggablePoint(qCanvas.x, qCanvas.y));
@@ -71,23 +95,6 @@ const sketch = (p5: P5) => {
         }
         *******/
 
-        /*******
-        // Draw bisector between p and q by looking at each pixel
-        let epsilon = .1;
-        let A = [];
-
-        for (let y = 0; y < 400; y += 0.5) {
-            for (let x = 0; x < 400; x += 0.5) {
-                let a = model.canvasToModel({x: x, y: y});
-                if (Math.abs(model.d(p, a) - model.d(a, q)) < epsilon)
-                    A.push(p);
-            }
-        }
-
-        for (let i = 0; i < A.length; ++i)
-            model.drawPoint(p5, A[i]);
-        ********/
-
         //let _p = model.modelToCanvas(z);
         //let _q = model.modelToCanvas(w);
         //p = new DraggablePoint(_p.x, _p.y);
@@ -96,56 +103,53 @@ const sketch = (p5: P5) => {
         //draggables.push(q);
 	};
 
+    function drawBisector() {
+        bisectorLayer.clear();
+        model.drawBisector(bisectorLayer, pModel, qModel);
+    }
+
 	p5.draw = () => {
-        p5.noFill();
         p5.clear();
+        modelLayer.noFill();
+        chordLayer.noFill();
+        bisectorLayer.noFill();
 
-        let bulge = bulgeSlider.value();
+        let bulge = Math.sqrt(2)/2 * Math.exp(bulgeSlider.value());
         if (bulge != prevBulge) {
-            prevBulge = bulge;
-            model.setBulge(Math.sqrt(2)/2 * Math.exp(bulge));
+            modelLayer.clear();
+            model.setBulge(bulge);
+            model.draw(modelLayer);
 
-        // let epsilon = .1;
-        // let A = [];
-
-        // for (let i = Math.min(pCanvas.y, qCanvas.y) - 10; i < Math.min(pCanvas.y, qCanvas.y) + 10; i += 0.5) {
-        //     for (let j = pCanvas.x; j < qCanvas.x; j += 0.5) {
-        //         let P = model.canvasToModel({x: i, y: j});
-        //         if (Math.abs(model.d(pModel, P) - model.d(P, qModel)) < epsilon)
-        //             A.push(P);
-        //     }
-        // }
-
-        // console.log(A);
-
-        // for (let i = 0; i < A.length; ++i)
-        //     model.drawPoint(p5, A[i]);
-
-        //console.log(model.d(x, y));
+            drawChord = true;
+            model.clearChordCache();
         }
 
-        model.draw(p5);
-
-        pModel = model.canvasToModel(draggables[0]);
-        qModel = model.canvasToModel(draggables[1]);
-        let [a,b] = model.chord(pModel, qModel);
-        model.drawPoint(p5, a);
-        model.drawPoint(p5, b);
-        p5.strokeWeight(1);
-        p5.stroke('blue');
-        p5.line(model.modelToCanvas(a).x, model.modelToCanvas(a).y, model.modelToCanvas(b).x, model.modelToCanvas(b).y);
-
-        //let modelMouse = model.canvasToModel({x: p5.mouseX, y: p5.mouseY});
-        //if (modelMouse.normSquared() > 1) {
-        //    let newMouse = model.modelToCanvas(modelMouse.normalize());
-        //    p5.mouseX = newMouse.x;
-        //    p5.mouseY = newMouse.y;
-        //}
         for (let draggable of draggables) {
             draggable.update(p5);
             draggable.over(p5);
             draggable.draw(p5);
+
+            if (draggable.dragging)
+                drawChord = true;
         }
+
+        if (drawChord) {
+            drawChord = false;
+            chordLayer.clear();
+
+            pModel = model.canvasToModel(draggables[0]);
+            qModel = model.canvasToModel(draggables[1]);
+            let [a,b] = model.chord(pModel, qModel);
+            model.drawPoint(chordLayer, a);
+            model.drawPoint(chordLayer, b);
+            chordLayer.strokeWeight(1);
+            chordLayer.stroke('blue');
+            chordLayer.line(model.modelToCanvas(a).x, model.modelToCanvas(a).y, model.modelToCanvas(b).x, model.modelToCanvas(b).y);
+        }
+
+        p5.image(bisectorLayer, 0, 0);
+        p5.image(chordLayer, 0, 0);
+        p5.image(modelLayer, 0, 0);
 	};
 
     p5.mousePressed = () => {
@@ -157,17 +161,6 @@ const sketch = (p5: P5) => {
         for (let draggable of draggables)
             draggable.released(p5);
     };
-
-    function polygon(p: Point, radius: number, npoints: number) {
-        let angle = Math.PI * 2 / npoints;
-        p5.beginShape();
-        for (let a = 0; a < Math.PI * 2; a += angle) {
-            let sx = p.x + Math.cos(a) * radius;
-            let sy = p.y + Math.sin(a) * radius;
-            p5.vertex(sx, sy);
-        }
-        p5.endShape(p5.CLOSE);
-    }
 };
 
 new P5(sketch);
