@@ -1,4 +1,4 @@
-import { inv } from 'mathjs';
+import { inv, eigs as matheigs } from 'mathjs';
 
 const EPSILON = 0.0001;
 
@@ -97,6 +97,24 @@ class Matrix {
             }
         }
         return det;
+    }
+
+    eigs(): {values: number[], vectors: Vector[]} {
+        let eigs = matheigs(this.mat);
+        let vectors: Vector[] = [];
+        let values: number[] = [];
+        eigs.vectors.forEach((v) => {
+            let arr = [];
+            v.forEach((n: number) => {
+                arr.push([n]);
+            });
+            vectors.push(new Vector(arr));
+        });
+        eigs.values.forEach((lambda) => {
+            values.push(lambda);
+        });
+
+        return {values: values, vectors: vectors};
     }
 
     /**
@@ -205,6 +223,12 @@ class Vector extends Matrix {
         return new Vector(mat);
     }
 
+    static e(i: number, n: number): Vector {
+        let res = Vector.zeros(n);
+        res.mat[i][0] = 1;
+        return res;
+    }
+
     constructor(mat: number[][]) {
         if (mat.length > 0 && mat[0].length > 1)
             throw new Error("Given matrix does not define a vector!");
@@ -268,10 +292,16 @@ class Vector extends Matrix {
 
     homogenize(idx: number = this.rows - 1): Vector {
         let z = this.at(idx);
-        let l: number[] = [];
-        for (let i = 0; i < this.mat.length; ++i)
-            l.push(this.at(i) / z);
-        return Vector.fromList(...l);
+
+        if (z >= EPSILON) {
+            let l: number[] = [];
+            for (let i = 0; i < this.mat.length; ++i)
+                l.push(this.at(i) / z);
+            return Vector.fromList(...l);
+        } else {
+            this.mat[this.rows - 1][0] = 0;
+            return this.normalize();
+        }
     }
 
     equals(other: Vector, epsilon: number = 0): boolean {

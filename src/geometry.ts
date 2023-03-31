@@ -42,6 +42,10 @@ class Point {
     add(v: Vector): Point {
         return new Point(this.x + v.at(0), this.y + v.at(1));
     }
+
+    equals(other: Point): Boolean {
+        return this.x == other.x && this.y == other.y;
+    }
 }
 
 class Simplex {
@@ -97,4 +101,4 @@ class Simplex {
     }
 }
 
-export {Point, Edge, Circle, Simplex, Line};
+export {Point, Edge, Circle, Simplex};

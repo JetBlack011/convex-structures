@@ -252,12 +252,12 @@ class PCModel implements ConvexDomain {
      *     which divide this convex domain
      * @param{number} bulge - Bulging parameter
      */
-    constructor(drawOrigin: Point, drawScale: number, bulge: number = 0) {
+    constructor(drawOrigin: Point, drawScale: number, bulge: number = Math.sqrt(2)/2) {
         this.drawOrigin = drawOrigin;
         this.drawScale = drawScale;
         //this.generators = generators;
 
-        this.setBulge(bulge);
+        //this.setBulge(bulge);
     }
 
     private rayCast(p: Vector, ray: Vector, q: Vector, w: Vector): [number, number, Vector] {
@@ -296,7 +296,7 @@ class PCModel implements ConvexDomain {
     //    return res;
     //}
 
-    setBulge(bulge: number): void {
+    setBulge(bulge: number, p5?: P5): void {
         this.bulge = Math.sqrt(2) / 2 * Math.exp(bulge);
 
         const p1 = Vector.fromList(1, 0, 1);
@@ -337,9 +337,23 @@ class PCModel implements ConvexDomain {
         this.boundary = [new Edge(p1, p2), new Edge(p2, p3), new Edge(p3, p1)];
         this.interior = [new Edge(p1, p2), new Edge(p2, p3), new Edge(p3, p1)];
 
-        for (let i = 0; i < g.length; ++i) {
+        for (let i = 0; i < 5; ++i) {
             if (g[i].equals(Matrix.identity(3), EPSILON))
                 continue;
+            try {
+                let eigs = g[i].eigs();
+                console.log(eigs.values);
+                eigs.vectors.forEach((v: Vector) => {
+                    console.log(v.homogenize().toString());
+                    p5.strokeWeight(10);
+                    p5.stroke('purple');
+                    let p = this.modelToCanvas(v.homogenize());
+                    p5.point(p.x, p.y);
+                    console.log(p);
+                });
+            } catch (e) {
+                console.log(e);
+            }
             const PMat = g[i].multiply(Matrix.fromBasis(p1, p2, p3)).transpose();
 
             const P1 = Vector.fromList(...PMat.mat[0]).homogenize();
@@ -380,14 +394,15 @@ class PCModel implements ConvexDomain {
                 }
             }
         }
+        console.log();
     }
 
     private chordCache: [Edge, Edge] = [null, null];
-    private boundaryRayCache: Object = {};
+    //private boundaryRayCache: Object = {};
 
     clearChordCache() {
         this.chordCache = [null, null];
-        this.boundaryRayCache = {};
+        //this.boundaryRayCache = {};
     }
     
     chord(x: Vector, y: Vector): Edge {
@@ -589,9 +604,11 @@ class PCModel implements ConvexDomain {
                     let rCanvas = new Point(i, j);
                     let rModel = this.canvasToModel(rCanvas);
 
+                    let diff = Math.abs(this.d(p, rModel) - this.d(rModel, q));
+                    p5.stroke((0.5 + Math.atan(15 * diff) / Math.PI) * 255, 0, 0);
                     p5.point(rCanvas.x, rCanvas.y);
 
-                    if (Math.abs(this.d(p, rModel) - this.d(rModel, q)) < epsilon) {
+                    if (diff < epsilon) {
                         bisectingPoints.push(rCanvas);
                         let nr = rCanvas.subtract(nextPoint);
                         let signedNorm = Math.sign(coorient.dot(nr)) * nr.normSquared();
@@ -609,7 +626,7 @@ class PCModel implements ConvexDomain {
         }
     }
 
-    drawBisector(p5: P5, p: Vector, q: Vector, epsilon: number = 0.003): void {
+    drawBisector(p5: P5, p: Vector, q: Vector, epsilon: number = 0.01): void {
         let pCanvas = this.modelToCanvas(p);
         let qCanvas = this.modelToCanvas(q);
 
@@ -645,9 +662,9 @@ class PCModel implements ConvexDomain {
         this.drawBisectorContinue(p5, p, q, midpoint, coorient.negate(), bisectingPoints, epsilon);
 
         p5.stroke('purple');
-        for (let i = 0; i < bisectingPoints.length; ++i) {
-            p5.point(bisectingPoints[i].x, bisectingPoints[i].y);
-        }
+        //for (let i = 0; i < bisectingPoints.length; ++i) {
+        //    p5.point(bisectingPoints[i].x, bisectingPoints[i].y);
+        //}
     }
 
     tesselate(p5: P5, points: Vector[]): void {

@@ -9,12 +9,12 @@ const sketch = (p5: P5) => {
     // Model
     let model: PCModel;
 
-    let pModel: Vector = Vector.fromList(0, 0.5, 1);
-    let qModel: Vector = Vector.fromList(0.5, -0.7, 1);
+    let pModel: Vector = Vector.fromList(0, 0, 1);
+    let qModel: Vector = Vector.fromList(0.1, 0.5, 1);
     let pCanvas: Point;
     let qCanvas: Point;
     
-    let defaultBulge: number = 0;
+    let defaultBulge: number = 0.5;
     let prevBulge: number = -1;
 
     // Graphical elements
@@ -118,12 +118,16 @@ const sketch = (p5: P5) => {
             prevBulge = bulge;
             modelLayer.clear();
             console.log();
-            model.setBulge(bulge);
+            model.setBulge(bulge, modelLayer);
             model.draw(modelLayer);
 
             drawChord = true;
             model.clearChordCache();
         }
+
+        p5.image(bisectorLayer, 0, 0);
+        p5.image(chordLayer, 0, 0);
+        p5.image(modelLayer, 0, 0);
 
         for (let draggable of draggables) {
             draggable.update(p5);
@@ -150,10 +154,6 @@ const sketch = (p5: P5) => {
             model.drawPoint(chordLayer, a);
             model.drawPoint(chordLayer, b);
         }
-
-        p5.image(bisectorLayer, 0, 0);
-        p5.image(chordLayer, 0, 0);
-        p5.image(modelLayer, 0, 0);
 	};
 
     p5.mousePressed = () => {
