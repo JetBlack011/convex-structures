@@ -1,8 +1,12 @@
 import P5 from "p5";
 import { Point } from "./geometry";
 
+function rand(min: number, max: number): number {
+    return Math.random() * (max - min) + min;
+}
+
 function randInt(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min)) + min;
+    return Math.floor(rand(min, max));
 }
 
 function binarySearch(nums: number[], target: number): number {
@@ -121,4 +125,4 @@ class DraggablePoint extends Draggable {
     }
 }
 
-export { randInt, Stack, Point, Draggable, DraggablePoint, binarySearch };
+export { rand, randInt, Stack, Point, Draggable, DraggablePoint, binarySearch };

@@ -1,8 +1,8 @@
 import P5 from "p5";
 
-import {randInt, Stack, binarySearch} from './utils';
-import {Matrix, Vector, ComplexNumber, Transformation, LinearTransformation, MobiusTransformation, EPSILON} from "./linalg";
-import {Edge, Simplex, Point} from './geometry';
+import { randInt, Stack, binarySearch } from './utils';
+import { Matrix, Vector, ComplexNumber, Transformation, LinearTransformation, MobiusTransformation, EPSILON } from "./linalg";
+import { Edge, Simplex, Point } from './geometry';
 
 type MetricFunction = (v1: Vector, v2: Vector) => number;
 
@@ -30,7 +30,12 @@ interface Model {
     tesselate(p5: P5, points: Vector[]): void
 }
 
-abstract class DiskModel implements Model {
+interface ConvexDomain extends Model {
+    //chord(z: Vector, w: Vector): Edge;
+    crossRatio(z: Vector, w: Vector): number;
+}
+
+abstract class DiskModel implements ConvexDomain {
     DIM = 3;
 
     drawOrigin: Point;
@@ -56,6 +61,7 @@ abstract class DiskModel implements Model {
         return this.T().T(p).homogenize();
     }
 
+    abstract crossRatio(z: Vector, w: Vector): number;
     abstract d(p: Vector, q: Vector): number;
 
     /**
@@ -76,7 +82,7 @@ abstract class DiskModel implements Model {
      * @param {Vector} p
      */
     modelToCanvas(p: Vector): Point {
-        p = this.act(p);
+        //p = this.act(p);
         return new Point(p.at(0) * this.drawRadius / 2 + this.drawOrigin.x, -p.at(1) * this.drawRadius / 2 + this.drawOrigin.y);
     }
 
@@ -114,7 +120,7 @@ abstract class DiskModel implements Model {
     /**
      * Draw a point in the disk
      * @param {P5} p5 - The p5 instance to which we should draw
-     * @param {Vector} p - The point in D to draw, |z| < 1
+     * @param {Vector} p - The point in D to draw, |p| < 1
      */
     drawPoint(p5: P5, p: Vector): void {
         p5.stroke(0);
@@ -131,17 +137,46 @@ abstract class DiskModel implements Model {
      */
     abstract drawGeodesic(p5: P5, p: Vector, q: Vector): void;
 
-    /**
-     * Bowyer-Watson algorithm for finding Delaunay triangulation, which is dual
-     * to the Voronoi tesselation
-     * @param {P5} p5
-     * @param {Vector} x0 The base point
-     * @param {Transformation[]} generators The generators for the discrete group
-     * used to generate the tesselation
-     * @param {number} breadth How many branches to evaluate
-     * @param {number} depth How deep along each branch to generate
-     */
-    abstract tesselate(p5: P5, points: Vector[]): void;
+    cols = [];
+
+    tesselate(p5: P5, points: Vector[]): void {
+        p5.strokeWeight(2);
+
+        let len = this.cols.length;
+        for (let i = 0; i < points.length - len; ++i) {
+            this.cols.push([randInt(0, 255), randInt(0, 255), randInt(0, 255)]);
+        }
+
+        for (let x = this.drawOrigin.x - this.drawRadius; x <= this.drawOrigin.x + this.drawRadius; x += 1) {
+            for (let y = this.drawOrigin.y - this.drawRadius; y <= this.drawOrigin.y + this.drawRadius; y += 1) {
+                let p = this.canvasToModel(new Point(x, y));
+
+                if (p.normSquared() - 1 > 1)
+                    continue;
+
+                let minDistance = Number.POSITIVE_INFINITY;
+                let col: [number, number, number] = [0, 0, 0];
+
+                for (let i = 0; i < points.length; ++i) {
+                    let distance = this.d(p, points[i]);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        col = this.cols[i];
+                    }
+                }
+
+                p5.stroke(...col);
+                p5.point(x, y);
+            }
+        }
+
+        for (let i = 0; i < points.length; ++i) {
+            let p = this.modelToCanvas(points[i]);
+            p5.stroke(255);
+            p5.strokeWeight(3);
+            p5.point(p.x, p.y);
+        }
+    }
 }
 
 /**
@@ -164,15 +199,21 @@ class PoincareModel extends DiskModel { // TODO: Fix frameStack here
         return ((n % m) + m) % m;
     }
 
+    crossRatio(z: Vector, w: Vector): number {
+        return -1;
+    }
+
     /**
      * Hyperbolic distance between points p and q in D.
      * @param {Vector} p
      * @param {Vector} q
      */
     d(p: Vector, q: Vector): number {
-        p = this.T.T(p).homogenize();
-        q = this.T.T(q).homogenize();
-        return Math.acosh(1 + this.delta(p, q));
+        //p = this.T.T(p).homogenize();
+        //q = this.T.T(q).homogenize();
+        p = Vector.fromList(p.at(0), p.at(1));
+        q = Vector.fromList(q.at(0), q.at(1));
+        return Math.acosh(1 + (2 * p.subtract(q).normSquared()) / ((1 - p.normSquared()) * (1 - q.normSquared())));
     }
 
     /**
@@ -182,8 +223,8 @@ class PoincareModel extends DiskModel { // TODO: Fix frameStack here
      * @param {Vector} q - The second point, |w| < 1
      */
     drawGeodesic(p5: P5, p: Vector, q: Vector) {
-        p = this.T.T(p).homogenize();
-        q = this.T.T(q).homogenize();
+        //p = this.T.T(p).homogenize();
+        //q = this.T.T(q).homogenize();
         p5.strokeWeight(1);
 
         let u = p.normalize();
@@ -221,14 +262,9 @@ class PoincareModel extends DiskModel { // TODO: Fix frameStack here
         p5.arc(canvasCenter.x, canvasCenter.y, canvasR, canvasR, theta1, theta2);
     }
 
-    tesselate(p5: P5, points: Vector[]): void {
-        return; // TODO: ?
-    }
-}
-
-interface ConvexDomain extends Model {
-    //chord(z: Vector, w: Vector): Edge;
-    crossRatio(z: Vector, w: Vector): number;
+    //tesselate(p5: P5, points: Vector[]): void {
+    //    return; // TODO: ?
+    //}
 }
 
 
@@ -238,6 +274,9 @@ class PCModel implements ConvexDomain {
 
     generators: LinearTransformation[];
     bulge: number;
+    p1 = Vector.fromList(1, 0, 1);
+    p2 = Vector.fromList(-0.5, Math.sqrt(3)/2, 1);
+    p3 = Vector.fromList(-0.5, -Math.sqrt(3)/2, 1);
     // TODO: Make these sets
     interior: Edge[] = [];
     boundary: Edge[] = [];
@@ -252,12 +291,12 @@ class PCModel implements ConvexDomain {
      *     which divide this convex domain
      * @param{number} bulge - Bulging parameter
      */
-    constructor(drawOrigin: Point, drawScale: number, bulge: number = Math.sqrt(2)/2) {
+    constructor(drawOrigin: Point, drawScale: number, bulge: number = 0) {
         this.drawOrigin = drawOrigin;
         this.drawScale = drawScale;
         //this.generators = generators;
 
-        //this.setBulge(bulge);
+        this.setBulge(bulge);
     }
 
     private rayCast(p: Vector, ray: Vector, q: Vector, w: Vector): [number, number, Vector] {
@@ -295,17 +334,11 @@ class PCModel implements ConvexDomain {
     //    }
     //    return res;
     //}
-
-    setBulge(bulge: number, p5?: P5): void {
-        this.bulge = Math.sqrt(2) / 2 * Math.exp(bulge);
-
-        const p1 = Vector.fromList(1, 0, 1);
-        const p2 = Vector.fromList(-0.5, Math.sqrt(3)/2, 1);
-        const p3 = Vector.fromList(-0.5, -Math.sqrt(3)/2, 1);
-
-        const alpha1: Vector = p2.cross(p3);
-        const alpha2: Vector = p3.cross(p1);
-        const alpha3: Vector = p1.cross(p2);
+    
+    bulgeSubgroup(bulge: number): Matrix[] {
+        const alpha1: Vector = this.p2.cross(this.p3);
+        const alpha2: Vector = this.p3.cross(this.p1);
+        const alpha3: Vector = this.p1.cross(this.p2);
 
         const l = Math.cos(Math.PI/4);
         const cartanMatrix = new Matrix([
@@ -328,33 +361,50 @@ class PCModel implements ConvexDomain {
         const r3 = Matrix.identity(3).subtract(v3.multiply(alpha3.transpose()));
 
         let g = [r1, r2, r3];
+
         for (let i = 0; i < PCModel.STEPS; ++i) {
-            g.push(g[i].multiply(g[0]));
-            g.push(g[i].multiply(g[1]));
-            g.push(g[i].multiply(g[2]));
+            g.push(g[i].multiply(r1));
+            g.push(g[i].multiply(r2));
+            g.push(g[i].multiply(r3));
         }
 
-        this.boundary = [new Edge(p1, p2), new Edge(p2, p3), new Edge(p3, p1)];
-        this.interior = [new Edge(p1, p2), new Edge(p2, p3), new Edge(p3, p1)];
+        g = g.filter((m1, index, self) => {
+            return index === self.findIndex((m2) => m2.equals(m1, EPSILON));
+        });
 
-        for (let i = 0; i < 5; ++i) {
+        return g;
+    }
+
+    setBulge(bulge: number, p5?: P5): void {
+        this.bulge = Math.sqrt(2) / 2 * Math.exp(bulge);
+
+        let g = this.bulgeSubgroup(bulge);
+
+        console.log(g);
+
+        this.boundary = [new Edge(this.p1, this.p2), new Edge(this.p2, this.p3), new Edge(this.p3, this.p1)];
+        this.interior = [new Edge(this.p1, this.p2), new Edge(this.p2, this.p3), new Edge(this.p3, this.p1)];
+
+        let basis = Matrix.fromBasis(this.p1, this.p2, this.p3);
+
+        for (let i = 0; i < g.length; ++i) {
             if (g[i].equals(Matrix.identity(3), EPSILON))
                 continue;
-            try {
-                let eigs = g[i].eigs();
-                console.log(eigs.values);
-                eigs.vectors.forEach((v: Vector) => {
-                    console.log(v.homogenize().toString());
-                    p5.strokeWeight(10);
-                    p5.stroke('purple');
-                    let p = this.modelToCanvas(v.homogenize());
-                    p5.point(p.x, p.y);
-                    console.log(p);
-                });
-            } catch (e) {
-                console.log(e);
-            }
-            const PMat = g[i].multiply(Matrix.fromBasis(p1, p2, p3)).transpose();
+            //try {
+            //    let eigs = g[i].eigs();
+            //    console.log(eigs.values);
+            //    eigs.vectors.forEach((v: Vector) => {
+            //        console.log(v.homogenize().toString());
+            //        p5.strokeWeight(10);
+            //        p5.stroke('purple');
+            //        let p = this.modelToCanvas(v.homogenize());
+            //        p5.point(p.x, p.y);
+            //        console.log(p);
+            //    });
+            //} catch (e) {
+            //    console.log(e);
+            //}
+            const PMat = g[i].multiply(basis).transpose();
 
             const P1 = Vector.fromList(...PMat.mat[0]).homogenize();
             const P2 = Vector.fromList(...PMat.mat[1]).homogenize();
@@ -394,7 +444,6 @@ class PCModel implements ConvexDomain {
                 }
             }
         }
-        console.log();
     }
 
     private chordCache: [Edge, Edge] = [null, null];
@@ -520,7 +569,7 @@ class PCModel implements ConvexDomain {
             b = t;
         }
 
-        return (y.subtract(a).norm() * b.subtract(x).norm()) / (x.subtract(a).norm() * b.subtract(y).norm());
+        return (y.subtract(a).xy().norm() * b.subtract(x).xy().norm()) / (x.subtract(a).xy().norm() * b.subtract(y).xy().norm());
     }
 
     d(p: Vector, q: Vector): number {
@@ -605,10 +654,12 @@ class PCModel implements ConvexDomain {
                     let rModel = this.canvasToModel(rCanvas);
 
                     let diff = Math.abs(this.d(p, rModel) - this.d(rModel, q));
-                    p5.stroke((0.5 + Math.atan(15 * diff) / Math.PI) * 255, 0, 0);
-                    p5.point(rCanvas.x, rCanvas.y);
+                    //p5.stroke((0.5 + Math.atan(15 * diff) / Math.PI) * 255, 0, 0);
+                    //p5.point(rCanvas.x, rCanvas.y);
+                    p5.stroke('purple');
 
                     if (diff < epsilon) {
+                        p5.point(rCanvas.x, rCanvas.y);
                         bisectingPoints.push(rCanvas);
                         let nr = rCanvas.subtract(nextPoint);
                         let signedNorm = Math.sign(coorient.dot(nr)) * nr.normSquared();
@@ -626,7 +677,7 @@ class PCModel implements ConvexDomain {
         }
     }
 
-    drawBisector(p5: P5, p: Vector, q: Vector, epsilon: number = 0.01): void {
+    drawBisector(p5: P5, p: Vector, q: Vector, epsilon: number = 0.003): void {
         let pCanvas = this.modelToCanvas(p);
         let qCanvas = this.modelToCanvas(q);
 
@@ -667,8 +718,42 @@ class PCModel implements ConvexDomain {
         //}
     }
 
+    cols = [];
+
     tesselate(p5: P5, points: Vector[]): void {
-        return; // TODO: ?
+        p5.strokeWeight(2);
+
+        let len = this.cols.length;
+        for (let i = 0; i < points.length - len; ++i) {
+            this.cols.push([randInt(0, 255), randInt(0, 255), randInt(0, 255)]);
+        }
+
+        for (let x = 5; x <= this.drawOrigin.x + this.drawScale; x += 1) {
+            for (let y = 5; y <= this.drawOrigin.y + this.drawScale; y += 1) {
+                let p = this.canvasToModel(new Point(x, y));
+
+                let minDistance = Number.POSITIVE_INFINITY;
+                let col: [number, number, number] = [0, 0, 0];
+
+                for (let i = 0; i < points.length; ++i) {
+                    let distance = this.d(p, points[i]);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        col = this.cols[i];
+                    }
+                }
+
+                p5.stroke(...col);
+                p5.point(x, y);
+            }
+        }
+
+        for (let i = 0; i < points.length; ++i) {
+            let p = this.modelToCanvas(points[i]);
+            p5.stroke(255);
+            p5.strokeWeight(3);
+            p5.point(p.x, p.y);
+        }
     }
 }
 
@@ -705,11 +790,13 @@ class KleinModel extends DiskModel {
             b = Vector.fromList(numb1 / denomb1, numb2 / denomb2);
         }
 
-        return [a,b];
+        return new Edge(a,b);
     }
 
     crossRatio(p: Vector, q: Vector): number {
-        let [a,b] = this.chord(p,q);
+        let e = this.chord(p,q);
+        let a = e.v1;
+        let b = e.v2;
         p = Vector.fromList(p.at(0), p.at(1));
         q = Vector.fromList(q.at(0), q.at(1));
 
@@ -724,7 +811,12 @@ class KleinModel extends DiskModel {
     }
 
     d(p: Vector, q: Vector): number {
+        //console.log(0.5 * Math.log(this.crossRatio(p, q)));
+        //console.log(Math.acosh((1 - p.dot(q)) / Math.sqrt((1 - p.normSquared()) * (1 - q.normSquared()))));
+        p = Vector.fromList(p.at(0), p.at(1));
+        q = Vector.fromList(q.at(0), q.at(1));
         return 0.5 * Math.log(this.crossRatio(p, q));
+        //return Math.acosh((1 - p.dot(q)) / Math.sqrt((1 - p.normSquared()) * (1 - q.normSquared())));
     }
 
     drawGeodesic(p5: P5, p: Vector, q: Vector): void {
@@ -755,57 +847,57 @@ class KleinModel extends DiskModel {
         return false;
     }
 
-    tesselate(p5: P5, points: Vector[]): void {
-        let triangulation: Simplex[] = [];
-        // Start with explicit super triangle bigger than the model
-        let superTriangle = new Simplex([
-            Vector.fromList(0, 3, 1),
-            Vector.fromList(-2, -1, 1),
-            Vector.fromList(2, -1, 1)
-        ]);
-        triangulation.push(superTriangle);
+    //tesselate(p5: P5, points: Vector[]): void {
+    //    let triangulation: Simplex[] = [];
+    //    // Start with explicit super triangle bigger than the model
+    //    let superTriangle = new Simplex([
+    //        Vector.fromList(0, 3, 1),
+    //        Vector.fromList(-2, -1, 1),
+    //        Vector.fromList(2, -1, 1)
+    //    ]);
+    //    triangulation.push(superTriangle);
 
-        for (let i = 0; i < points.length; ++i) {
-            let point = points[i];
-            let badTriangles: Simplex[] = [];
-            for (let j = 0; j < triangulation.length; ++j) {
-                let circumcircle = triangulation[j].circumcircle((v1: Vector, v2: Vector) => v1.dot(v2));
-                if (point.subtract(circumcircle[0]).norm() <= circumcircle[1])
-                    badTriangles.push(triangulation[j]);
-            }
-            
-            let polygon: Edge[] = [];
-            for (let j = 0; j < badTriangles.length; ++j) {
-                let badTriangle = badTriangles[j];
-                for (let e = 0; e < badTriangle.edges.length; ++e) {
-                    let edge = badTriangle.edges[e];
-                    if (this.isBadEdge(badTriangles, edge))
-                        polygon.push(edge);
-                }
-            }
+    //    for (let i = 0; i < points.length; ++i) {
+    //        let point = points[i];
+    //        let badTriangles: Simplex[] = [];
+    //        for (let j = 0; j < triangulation.length; ++j) {
+    //            let circumcircle = triangulation[j].circumcircle((v1: Vector, v2: Vector) => v1.dot(v2));
+    //            if (point.subtract(circumcircle[0]).norm() <= circumcircle[1])
+    //                badTriangles.push(triangulation[j]);
+    //        }
+    //        
+    //        let polygon: Edge[] = [];
+    //        for (let j = 0; j < badTriangles.length; ++j) {
+    //            let badTriangle = badTriangles[j];
+    //            for (let e = 0; e < badTriangle.edges.length; ++e) {
+    //                let edge = badTriangle.edges[e];
+    //                if (this.isBadEdge(badTriangles, edge))
+    //                    polygon.push(edge);
+    //            }
+    //        }
 
-            for (let j = 0; j < badTriangles.length; ++j) {
-                triangulation = triangulation.filter(triangle => triangle !== badTriangles[j]); // TODO: Does this comparison work?
-            }
+    //        for (let j = 0; j < badTriangles.length; ++j) {
+    //            triangulation = triangulation.filter(triangle => triangle !== badTriangles[j]); // TODO: Does this comparison work?
+    //        }
 
-            for (let e = 0; e < polygon.length; ++e) {
-                let edge = polygon[e];
-                triangulation.push(new Simplex([edge[0], edge[1], point]));
-            }
-        }
+    //        for (let e = 0; e < polygon.length; ++e) {
+    //            let edge = polygon[e];
+    //            triangulation.push(new Simplex([edge[0], edge[1], point]));
+    //        }
+    //    }
 
-        for (let i = 0; i < triangulation.length; ++i) {
-            let triangle = triangulation[i];
-            for (let j = 0; j < superTriangle.vertices.length; ++j) {
-                let origVertex = superTriangle.vertices[j];
-                if (triangle.vertices.includes(origVertex))
-                    triangulation = triangulation.filter(t => t !== triangle);
-            }
-        }
+    //    for (let i = 0; i < triangulation.length; ++i) {
+    //        let triangle = triangulation[i];
+    //        for (let j = 0; j < superTriangle.vertices.length; ++j) {
+    //            let origVertex = superTriangle.vertices[j];
+    //            if (triangle.vertices.includes(origVertex))
+    //                triangulation = triangulation.filter(t => t !== triangle);
+    //        }
+    //    }
 
-        console.log(triangulation);
-        // TODO: Draw triangulation
-    }
+    //    console.log(triangulation);
+    //    // TODO: Draw triangulation
+    //}
 }
 
-export {MetricFunction, Model, KleinModel, PoincareModel, PCModel};
+export {MetricFunction, Model, DiskModel, KleinModel, PoincareModel, PCModel};

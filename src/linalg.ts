@@ -239,6 +239,22 @@ class Vector extends Matrix {
         return this.mat[i][0];
     }
 
+    x(): number {
+        return this.at(0);
+    }
+
+    y(): number {
+        return this.at(1);
+    }
+
+    z(): number {
+        return this.at(2);
+    }
+
+    xy(): Vector {
+        return Vector.fromList(this.x(), this.y());
+    }
+
     scale(c: number): Vector {
         return Vector.fromMatrix(super.scale(c));
     }

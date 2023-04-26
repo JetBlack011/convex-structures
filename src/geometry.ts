@@ -1,5 +1,6 @@
-import {EPSILON, Matrix, Vector} from './linalg';
-import {MetricFunction} from './model';
+import { EPSILON, Matrix, Vector } from './linalg';
+import { MetricFunction } from './model';
+import { rand } from "./utils";
 
 type Circle = [Vector, number];
 
@@ -29,6 +30,10 @@ class Edge {
 class Point {
     x: number;
     y: number;
+
+    static randPoint(minX: number, maxX: number, minY: number, maxY: number): Point {
+        return new Point(rand(minX, maxX), rand(minY, maxY));
+    }
 
     constructor(x: number, y: number) {
         this.x = x;
@@ -101,4 +106,4 @@ class Simplex {
     }
 }
 
-export {Point, Edge, Circle, Simplex};
+export { Point, Edge, Circle, Simplex };
