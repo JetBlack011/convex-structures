@@ -3,10 +3,9 @@
   "version": "1.0.0",
   "description": "Exploring convex structures with p5.js",
   "default": "index.html",
-  "source": "src/index.html",
   "scripts": {
-    "start": "parcel",
-    "build": "parcel build",
+    "start": "parcel index.html",
+    "build": "parcel build index.html",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "dependencies": {
@@ -23,9 +22,8 @@
   "devDependencies": {
     "@jest/globals": "^29.3.1",
     "@types/jest": "^29.2.5",
-    "parcel": "^2.8.3",
     "ts-jest": "^29.0.3",
-    "ts-node": "^10.9.1"
+    "parcel": "^2.8.3"
   },
   "type": "module"
 }
