@@ -2,7 +2,7 @@ import P5, { Graphics } from "p5";
 import "p5/lib/addons/p5.dom";
 
 import { Vector } from "../linalg";
-import { ConvexProjectiveModel } from "../model";
+import { ConvexProjectiveModel, HilbertBisectorDrawOption } from "../model";
 import { Point, Draggable, DraggablePoint } from "../geometry";
 
 export function hilbertBisectorSketch(p5: P5): void {
@@ -21,6 +21,7 @@ export function hilbertBisectorSketch(p5: P5): void {
     let draggables: Draggable[] = [];
     let bulgeSlider;
     let bisectorButton;
+    let drawOptionSelect;
 
     // Layers
     let modelLayer: Graphics;
@@ -53,6 +54,11 @@ export function hilbertBisectorSketch(p5: P5): void {
         bisectorButton = p5.createButton('Bisector');
         bisectorButton.position(10, 70);
         bisectorButton.mousePressed(drawBisector);
+
+        drawOptionSelect = p5.createSelect();
+        drawOptionSelect.position(85, 70);
+        drawOptionSelect.option('Epsilon');
+        drawOptionSelect.option('Gradient');
 
         draggables.push(new DraggablePoint(pCanvas.x, pCanvas.y));
         draggables.push(new DraggablePoint(qCanvas.x, qCanvas.y));
@@ -104,7 +110,14 @@ export function hilbertBisectorSketch(p5: P5): void {
 
     function drawBisector() {
         bisectorLayer.clear();
-        model.drawBisector(bisectorLayer, pModel, qModel);
+        let drawOption: HilbertBisectorDrawOption;
+
+        if (drawOptionSelect.value() == 'Epsilon')
+            drawOption = HilbertBisectorDrawOption.Epsilon;
+        else
+            drawOption = HilbertBisectorDrawOption.Gradient;
+
+        model.drawBisector(bisectorLayer, pModel, qModel, drawOption);
     }
 
 	p5.draw = () => {
@@ -117,7 +130,6 @@ export function hilbertBisectorSketch(p5: P5): void {
         if (bulge != prevBulge) {
             prevBulge = bulge;
             modelLayer.clear();
-            console.log();
             model.setBulge(bulge, modelLayer);
             model.draw(modelLayer);
 
@@ -128,6 +140,8 @@ export function hilbertBisectorSketch(p5: P5): void {
         p5.image(bisectorLayer, 0, 0);
         p5.image(chordLayer, 0, 0);
         p5.image(modelLayer, 0, 0);
+
+        p5.text('Bulge', 100, 25);
 
         for (let draggable of draggables) {
             draggable.update(p5);

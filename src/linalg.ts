@@ -306,6 +306,14 @@ class Vector extends Matrix {
         return this.scale(1/this.norm());
     }
 
+    // TODO: Bad
+    normalizeXY(): Vector {
+        let xyNorm = this.xy().norm();
+        if (xyNorm == 0)
+            return Vector.fromList(0, 0, 1);
+        return Vector.fromList(this.x() / xyNorm, this.y() / xyNorm, 1);
+    }
+
     homogenize(idx: number = this.rows - 1): Vector {
         let z = this.at(idx);
 

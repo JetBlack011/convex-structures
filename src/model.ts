@@ -92,7 +92,7 @@ abstract class DiskModel implements ConvexDomain {
      */
     modelToCanvas(p: Vector): Point {
         //p = this.act(p);
-        return new Point(p.at(0) * this.drawRadius / 2 + this.drawOrigin.x, -p.at(1) * this.drawRadius / 2 + this.drawOrigin.y);
+        return new Point(p.x() * this.drawRadius / 2 + this.drawOrigin.x, -p.y() * this.drawRadius / 2 + this.drawOrigin.y);
     }
 
     /**
@@ -220,8 +220,8 @@ class PoincareModel extends DiskModel { // TODO: Fix frameStack here
     d(p: Vector, q: Vector): number {
         //p = this.T.T(p).homogenize();
         //q = this.T.T(q).homogenize();
-        p = Vector.fromList(p.at(0), p.at(1));
-        q = Vector.fromList(q.at(0), q.at(1));
+        p = Vector.fromList(p.x(), p.y());
+        q = Vector.fromList(q.x(), q.y());
         return Math.acosh(1 + (2 * p.subtract(q).normSquared()) / ((1 - p.normSquared()) * (1 - q.normSquared())));
     }
 
@@ -236,11 +236,8 @@ class PoincareModel extends DiskModel { // TODO: Fix frameStack here
         //q = this.T.T(q).homogenize();
         p5.strokeWeight(1);
 
-        let u = p.normalize();
-        let v = q.normalize();
-
         // If p and q are collinear, drawing a circle is hard; use a line instead
-        if (u.equals(v) || u.equals(v.scale(-1))) {
+        if (Math.abs(p.xy().dot(q.xy()) - p.xy().norm() * q.xy().norm()) < EPSILON) {
             let a = this.modelToCanvas(p);
             let b = this.modelToCanvas(q);
             p5.line(a.x, a.y, b.x, b.y);
@@ -248,14 +245,14 @@ class PoincareModel extends DiskModel { // TODO: Fix frameStack here
         }
 
         // Compute the center and radius of tangent circle
-        let a = (p.at(1) * (q.at(0)**2 + q.at(1)**2 + 1) - q.at(1) * (p.at(0)**2 + p.at(1)**2 + 1)) / (p.at(0) * q.at(1) - p.at(1) * q.at(0));
-        let b = (q.at(0) * (p.at(0)**2 + p.at(1)**2 + 1) - p.at(0) * (q.at(0)**2 + q.at(1)**2 + 1)) / (p.at(0) * q.at(1) - p.at(1) * q.at(0));
+        let a = (p.y() * (q.x()**2 + q.y()**2 + 1) - q.y() * (p.x()**2 + p.y()**2 + 1)) / (p.x() * q.y() - p.y() * q.x());
+        let b = (q.x() * (p.x()**2 + p.y()**2 + 1) - p.x() * (q.x()**2 + q.y()**2 + 1)) / (p.x() * q.y() - p.y() * q.x());
 
         let center = Vector.fromList(-a / 2, -b / 2, 1);
-        let r = Math.sqrt(center.normSquared() - 1);
+        let r = Math.sqrt(center.normSquared() - 2);
 
-        let theta1 = this.mod(-Math.atan2(p.at(1) - center.at(1), p.at(0) - center.at(0)), 2 * Math.PI);
-        let theta2 = this.mod(-Math.atan2(q.at(1) - center.at(1), q.at(0) - center.at(0)), 2 * Math.PI);
+        let theta1 = this.mod(-Math.atan2(p.y() - center.y(), p.x() - center.x()), 2 * Math.PI);
+        let theta2 = this.mod(-Math.atan2(q.y() - center.y(), q.x() - center.x()), 2 * Math.PI);
 
         // A hacky way of ensuring the order of theta1 and theta2 is correct
         if (this.mod(theta2 - theta1, 2 * Math.PI) > this.mod(theta1 - theta2, 2 * Math.PI)) {
@@ -285,10 +282,10 @@ class KleinModel extends DiskModel {
     }
 
     chord(p: Vector, q: Vector): Edge {
-        let x1 = p.at(0);
-        let y1 = p.at(1);
-        let x2 = q.at(0);
-        let y2 = q.at(1);
+        let x1 = p.x();
+        let y1 = p.y();
+        let x2 = q.x();
+        let y2 = q.y();
         let a: Vector;
         let b: Vector;
 
@@ -319,8 +316,8 @@ class KleinModel extends DiskModel {
         let e = this.chord(p,q);
         let a = e.v1;
         let b = e.v2;
-        p = Vector.fromList(p.at(0), p.at(1));
-        q = Vector.fromList(q.at(0), q.at(1));
+        p = Vector.fromList(p.x(), p.y());
+        q = Vector.fromList(q.x(), q.y());
 
         // Make sure point ordering is correct
         if (a.subtract(p).norm() > a.subtract(q).norm()) {
@@ -335,8 +332,8 @@ class KleinModel extends DiskModel {
     d(p: Vector, q: Vector): number {
         //console.log(0.5 * Math.log(this.crossRatio(p, q)));
         //console.log(Math.acosh((1 - p.dot(q)) / Math.sqrt((1 - p.normSquared()) * (1 - q.normSquared()))));
-        p = Vector.fromList(p.at(0), p.at(1));
-        q = Vector.fromList(q.at(0), q.at(1));
+        p = Vector.fromList(p.x(), p.y());
+        q = Vector.fromList(q.x(), q.y());
         return 0.5 * Math.log(this.crossRatio(p, q));
         //return Math.acosh((1 - p.dot(q)) / Math.sqrt((1 - p.normSquared()) * (1 - q.normSquared())));
     }
@@ -419,6 +416,11 @@ class KleinModel extends DiskModel {
     //}
 }
 
+enum HilbertBisectorDrawOption {
+    Epsilon,
+    Gradient
+}
+
 /**
  * A model for convex projective geometry. Implements the Hilbert metric,
  * as well as methods to draw bisectors in this metric.
@@ -462,14 +464,14 @@ class ConvexProjectiveModel implements ConvexDomain {
      * @param {Vector} w - Ray defining the line of intersection
      */
     private rayCast(p: Vector, ray: Vector, q: Vector, w: Vector): [number, number, Vector] {
-        let px = p.at(0);
-        let py = p.at(1);
-        let rayx = ray.at(0);
-        let rayy = ray.at(1);
-        let qx = q.at(0);
-        let qy = q.at(1);
-        let wx = w.at(0);
-        let wy = w.at(1);
+        let px = p.x();
+        let py = p.y();
+        let rayx = ray.x();
+        let rayy = ray.y();
+        let qx = q.x();
+        let qy = q.y();
+        let wx = w.x();
+        let wy = w.y();
 
         let intersectionPoint = [
             [-(-rayx * qy * wx + rayx * qx * wy - rayy * wx * px + rayx * wx * py)/(rayy * wx - rayx * wy)],
@@ -760,7 +762,7 @@ class ConvexProjectiveModel implements ConvexDomain {
     }
 
     modelToCanvas(p: Vector): Point {
-        return new Point(this.drawScale * p.at(0) + this.drawOrigin.x, -this.drawScale * p.at(1) + this.drawOrigin.y);
+        return new Point(this.drawScale * p.x() + this.drawOrigin.x, -this.drawScale * p.y() + this.drawOrigin.y);
     }
 
     canvasToModel(p: Point): Vector {
@@ -830,7 +832,7 @@ class ConvexProjectiveModel implements ConvexDomain {
     /**
      * Performs a box walk to find the Hilbert bisector.
      */
-    drawBisectorContinue(p5: P5, p: Vector, q: Vector, nextPoint: Point, coorient: Vector, bisectingPoints: Point[], epsilon: number) {
+    drawBisectorContinue(p5: P5, p: Vector, q: Vector, nextPoint: Point, coorient: Vector, bisectingPoints: Point[], drawOption: HilbertBisectorDrawOption, epsilon: number) {
         //let midpoint = nextPoint;
         for (let i = 0; i < 0.5 * this.drawScale; ++i) {
             let nextBox: [Point, Point] = [new Point(nextPoint.x - 10, nextPoint.y - 10), new Point(nextPoint.x + 10, nextPoint.y + 10)];
@@ -846,12 +848,18 @@ class ConvexProjectiveModel implements ConvexDomain {
                     let rModel = this.canvasToModel(rCanvas);
 
                     let diff = Math.abs(this.d(p, rModel) - this.d(rModel, q));
-                    //p5.stroke((0.5 + Math.atan(15 * diff) / Math.PI) * 255, 0, 0);
-                    //p5.point(rCanvas.x, rCanvas.y);
+                    if (drawOption == HilbertBisectorDrawOption.Epsilon)
+                        p5.stroke('pink');
+                    else {
+                        let col = (0.5 + Math.atan(15 * diff) / Math.PI) * 255;
+                        p5.stroke(col, 0, col);
+                    }
+                    p5.point(rCanvas.x, rCanvas.y);
                     p5.stroke('purple');
 
                     if (diff < epsilon) {
-                        p5.point(rCanvas.x, rCanvas.y);
+                        if (drawOption == HilbertBisectorDrawOption.Epsilon)
+                            p5.point(rCanvas.x, rCanvas.y);
                         bisectingPoints.push(rCanvas);
                         let nr = rCanvas.subtract(nextPoint);
                         let signedNorm = Math.sign(coorient.dot(nr)) * nr.normSquared();
@@ -873,14 +881,14 @@ class ConvexProjectiveModel implements ConvexDomain {
      * Draws the Hilbert bisector between points p and q.
      * @param {number} epsilon - Error parameter for testing equidistance
      */
-    drawBisector(p5: P5, p: Vector, q: Vector, epsilon: number = 0.003): void {
+    drawBisector(p5: P5, p: Vector, q: Vector, drawOption: HilbertBisectorDrawOption, epsilon: number = 0.003): void {
         let pCanvas = this.modelToCanvas(p);
         let qCanvas = this.modelToCanvas(q);
 
         let bisectingPoints: Point[] = [];
 
         let pq = q.subtract(p);
-        let coorient = Vector.fromList(-pq.at(1), pq.at(0), 1).normalize();
+        let coorient = Vector.fromList(-pq.y(), pq.x(), 1).normalizeXY();
         let midpoint: Point = null;
 
         p5.strokeWeight(1);
@@ -905,8 +913,8 @@ class ConvexProjectiveModel implements ConvexDomain {
             }
         }
 
-        this.drawBisectorContinue(p5, p, q, midpoint, coorient, bisectingPoints, epsilon);
-        this.drawBisectorContinue(p5, p, q, midpoint, coorient.negate(), bisectingPoints, epsilon);
+        this.drawBisectorContinue(p5, p, q, midpoint, coorient, bisectingPoints, drawOption, epsilon);
+        this.drawBisectorContinue(p5, p, q, midpoint, coorient.negate(), bisectingPoints, drawOption, epsilon);
 
         p5.stroke('purple');
         //for (let i = 0; i < bisectingPoints.length; ++i) {
@@ -955,4 +963,4 @@ class ConvexProjectiveModel implements ConvexDomain {
 }
 
 
-export { MetricFunction, Model, DiskModel, PoincareModel, KleinModel, ConvexProjectiveModel };
+export { MetricFunction, Model, DiskModel, PoincareModel, KleinModel, ConvexProjectiveModel, HilbertBisectorDrawOption };
