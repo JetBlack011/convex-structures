@@ -1,6 +1,6 @@
 import { inv, eigs as matheigs } from 'mathjs';
 
-const EPSILON = 0.0001;
+const EPSILON = 0.0001; // TODO: There's no reason for this to go here lol
 
 class Matrix {
     mat: number[][];
@@ -383,6 +383,7 @@ class ComplexNumber {
     }
 }
 
+// TODO: I decided I actually don't like this design. Will update later.
 interface Transformation {
     T(x: Vector): Vector;
     compose(other: Transformation): Transformation;
@@ -472,4 +473,4 @@ class MobiusTransformation { //implements Transformation {
     */
 }
 
-export {Matrix, Vector, ComplexNumber, Transformation, LinearTransformation, MobiusTransformation, EPSILON};
+export { Matrix, Vector, ComplexNumber, Transformation, LinearTransformation, MobiusTransformation, EPSILON };

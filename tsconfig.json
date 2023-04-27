@@ -11,6 +11,16 @@
       "dom"
     ],
     "rootDir": "src",
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "types": []
+  },
+  "include": ["src/**/*"],
+  "exclude": [
+    "node_modules/*",
+    "dist",
+    "jest.config.ts"
+  ],
+  "typeAcquisition": {
+    "exclude": ["jest"]
   }
 }

@@ -1,5 +1,5 @@
 import {describe, expect, test} from '@jest/globals';
-import {Circle, Edge, Point, Simplex} from './geometry';
+import {Point, Circle, Edge, Simplex} from './geometry';
 import {Vector} from './linalg';
 
 describe('Edge', () => {

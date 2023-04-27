@@ -2,12 +2,12 @@ import P5, { Graphics } from "p5";
 import "p5/lib/addons/p5.dom";
 
 import { Vector } from "../linalg";
-import { PCModel } from "../model";
-import { Point, Draggable, DraggablePoint } from "../utils";
+import { ConvexProjectiveModel } from "../model";
+import { Point, Draggable, DraggablePoint } from "../geometry";
 
 export function hilbertBisectorSketch(p5: P5): void {
     // Model
-    let model: PCModel;
+    let model: ConvexProjectiveModel;
 
     let pModel: Vector = Vector.fromList(0, 0, 1);
     let qModel: Vector = Vector.fromList(0.1, 0.5, 1);
@@ -36,7 +36,7 @@ export function hilbertBisectorSketch(p5: P5): void {
 		p5.background("white");
 
         // Model
-        model = new PCModel(new Point(400, 400), 100);
+        model = new ConvexProjectiveModel(new Point(400, 400), 100);
         pCanvas = model.modelToCanvas(pModel);
         qCanvas = model.modelToCanvas(qModel);
 
@@ -47,11 +47,11 @@ export function hilbertBisectorSketch(p5: P5): void {
 
         // Graphical elements
         bulgeSlider = p5.createSlider(-4, 4, 0, 0.01);
-        bulgeSlider.position(10, 10);
+        bulgeSlider.position(10, 40);
         bulgeSlider.style('width', '80px');
 
         bisectorButton = p5.createButton('Bisector');
-        bisectorButton.position(10, 40);
+        bisectorButton.position(10, 70);
         bisectorButton.mousePressed(drawBisector);
 
         draggables.push(new DraggablePoint(pCanvas.x, pCanvas.y));
