@@ -1,7 +1,7 @@
 \documentclass[12pt]{article}%
 \usepackage{fancyhdr}
 \usepackage{hyperref}
-\usepackage[a4paper, top=1cm, bottom=1.5cm, left=2cm, right=2cm]{geometry}
+\usepackage[a4paper, margin=0.95in]{geometry}
 \usepackage{common-math}
 
 \begin{document}
@@ -58,9 +58,46 @@ So far, the following are working:
 			\item It is also currently possible to view the fundamental domain coming from the Voronoi tessellation of the triangle reflection group I chose, but not yet under the deformation. This should be an easy thing to add \cite{gezalyan2021voronoi}.
 		\end{enumerate}
 	\end{enumerate}
+	\item Hyperbolic Voronoi diagrams.
+	\begin{enumerate}
+		\item Again, there were a number of options for the implementation here. I implemented Bowyer-Watson to compute the hyperbolic Delaunay triangulation (to then compute the dual Voronoi tessellation), but ultimately wasn't able to finish debugging this for the final project. The algorithm in use currently is the naive one, but it works pretty fast up to $100$ points.
+		\item This works for both the Poincar\'e and Klein models, and thanks to caching, it is very fast to switch between them.
+		\item For the Voronoi diagrams with respect to the Hilbert metric, I was planning on working through \cite{gezalyan2021voronoi}.
+	\end{enumerate}
 \end{enumerate}
 
 \section{Artifacts}
+
+\begin{enumerate}
+	\item Hyperbolic Geodesics
+		\begin{figure}[H]
+			\centering
+			\includegraphics[scale=0.25]{p_geodesic.png}
+			\includegraphics[scale=0.25]{k_geodesic.png}
+		\end{figure}
+	\item Hilbert Bisectors
+		\begin{figure}[H]
+			\centering
+			\includegraphics[scale=0.25]{mild_deformation.png}
+			\includegraphics[scale=0.25]{extreme_deformation1.png}
+			\includegraphics[scale=0.25]{extreme_deformation2.png}
+		\end{figure}
+		\begin{figure}[H]
+			\centering
+			\includegraphics[scale=0.3]{gradient_bisector.png}
+		\end{figure}
+	\item Hyperbolic Voronoi diagrams
+	\begin{figure}[H]
+		\centering
+		\includegraphics[scale=0.25]{p_voronoi_small.png}
+		\includegraphics[scale=0.25]{k_voronoi_small.png}
+	\end{figure}
+	\begin{figure}[H]
+		\centering
+		\includegraphics[scale=0.25]{p_voronoi_big.png}
+		\includegraphics[scale=0.25]{k_voronoi_big.png}
+	\end{figure}
+\end{enumerate}
 
 \bibliographystyle{unsrt}
 \bibliography{refs}
